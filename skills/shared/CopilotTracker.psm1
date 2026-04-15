@@ -1,35 +1,98 @@
 # CopilotTracker.psm1 - PowerShell module for Copilot Session Tracker
-# Talks to the MCP server (not Cosmos DB directly)
+#
+# Writes go through the MCP endpoint (/mcp) using JSON-RPC tool calls.
+# Reads use the REST API (/api/*) when available.
+# The server handles all Cosmos DB access internally.
 
-$script:McpUrl = $null
+$script:BaseUrl = $null
 $script:SessionId = $null
 $script:MachineId = $null
 $script:HeartbeatJob = $null
+$script:ResourceId = "api://4c8148f5-c913-40c5-863f-1c019821eac4"
+
+# ── Connection ────────────────────────────────────────────────────────
 
 function Initialize-TrackerConnection {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]
-        [string]$McpUrl = "https://copilot-tracker.azurewebsites.net"
+        [string]$BaseUrl
     )
 
-    $script:McpUrl = $McpUrl.TrimEnd('/')
+    # Priority: explicit parameter > env var > default
+    if (-not $BaseUrl) {
+        $BaseUrl = $env:COPILOT_TRACKER_URL
+    }
+    if (-not $BaseUrl) {
+        $BaseUrl = "https://copilot-tracker.azurewebsites.net"
+    }
+
+    $script:BaseUrl = $BaseUrl.TrimEnd('/')
     $script:MachineId = $env:COMPUTERNAME
-    Write-Verbose "Tracker connected to $script:McpUrl"
+    Write-Verbose "Tracker connected to $script:BaseUrl"
 }
 
-function Get-McpHeaders {
-    # Get an access token for the API
-    $token = az account get-access-token --resource "api://4c8148f5-c913-40c5-863f-1c019821eac4" --query accessToken -o tsv 2>$null
+function Get-TrackerHeaders {
+    [CmdletBinding()]
+    param()
+
+    $token = az account get-access-token --resource $script:ResourceId --query accessToken -o tsv 2>$null
     if (-not $token) {
         Write-Warning "Failed to get access token. Run 'az login' first."
         return $null
     }
     return @{
         "Authorization" = "Bearer $token"
-        "Content-Type" = "application/json"
+        "Content-Type"  = "application/json"
     }
 }
+
+# ── MCP helper (JSON-RPC tool call) ──────────────────────────────────
+
+function Invoke-McpTool {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ToolName,
+        [Parameter(Mandatory)][hashtable]$Arguments
+    )
+
+    $headers = Get-TrackerHeaders
+    if (-not $headers) { return $null }
+
+    $body = @{
+        jsonrpc = "2.0"
+        method  = "tools/call"
+        id      = [guid]::NewGuid().ToString()
+        params  = @{
+            name      = $ToolName
+            arguments = $Arguments
+        }
+    } | ConvertTo-Json -Depth 5
+
+    $response = Invoke-RestMethod -Uri "$script:BaseUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop
+    if ($response.result.content) {
+        return $response.result.content[0].text | ConvertFrom-Json
+    }
+    return $null
+}
+
+# ── REST helper (for read endpoints) ─────────────────────────────────
+
+function Invoke-TrackerApi {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [string]$Method = "GET"
+    )
+
+    $headers = Get-TrackerHeaders
+    if (-not $headers) { return $null }
+
+    $uri = "$script:BaseUrl$Path"
+    return Invoke-RestMethod -Uri $uri -Method $Method -Headers $headers -ErrorAction Stop
+}
+
+# ── Session management ───────────────────────────────────────────────
 
 function Start-TrackerSession {
     [CmdletBinding()]
@@ -39,40 +102,19 @@ function Start-TrackerSession {
         [string]$Branch
     )
 
-    if (-not $script:McpUrl) {
+    if (-not $script:BaseUrl) {
         Initialize-TrackerConnection
     }
 
-    $headers = Get-McpHeaders
-    if (-not $headers) { return }
-
-    # Call MCP initialize-session tool
-    $body = @{
-        jsonrpc = "2.0"
-        method = "tools/call"
-        id = [guid]::NewGuid().ToString()
-        params = @{
-            name = "initialize-session"
-            arguments = @{
-                machineId = $script:MachineId
-                repository = $Repo
-                branch = $Branch
-            }
-        }
-    } | ConvertTo-Json -Depth 5
-
     try {
-        $response = Invoke-RestMethod -Uri "$script:McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-        $result = $response.result
+        $args_ = @{ machineId = $script:MachineId }
+        if ($Repo) { $args_.repository = $Repo }
+        if ($Branch) { $args_.branch = $Branch }
 
-        if ($result.content) {
-            $sessionData = $result.content[0].text | ConvertFrom-Json
+        $sessionData = Invoke-McpTool -ToolName "initialize-session" -Arguments $args_
+        if ($sessionData.id) {
             $script:SessionId = $sessionData.id
-            Write-Host "Session tracking active: $($script:SessionId)" -ForegroundColor Green
-
-            # Start heartbeat background job
             Start-HeartbeatJob
-
             return $script:SessionId
         }
     }
@@ -85,26 +127,13 @@ function Send-TrackerHeartbeat {
     [CmdletBinding()]
     param()
 
-    if (-not $script:SessionId -or -not $script:McpUrl) { return }
-
-    $headers = Get-McpHeaders
-    if (-not $headers) { return }
-
-    $body = @{
-        jsonrpc = "2.0"
-        method = "tools/call"
-        id = [guid]::NewGuid().ToString()
-        params = @{
-            name = "heartbeat"
-            arguments = @{
-                sessionId = $script:SessionId
-                machineId = $script:MachineId
-            }
-        }
-    } | ConvertTo-Json -Depth 5
+    if (-not $script:SessionId -or -not $script:BaseUrl) { return }
 
     try {
-        Invoke-RestMethod -Uri "$script:McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+        Invoke-McpTool -ToolName "heartbeat" -Arguments @{
+            sessionId = $script:SessionId
+            machineId = $script:MachineId
+        } | Out-Null
     }
     catch {
         Write-Verbose "Heartbeat failed: $_"
@@ -117,30 +146,18 @@ function Complete-TrackerSession {
         [string]$Summary
     )
 
-    if (-not $script:SessionId -or -not $script:McpUrl) { return }
+    if (-not $script:SessionId -or -not $script:BaseUrl) { return }
 
-    # Stop heartbeat
     Stop-HeartbeatJob
 
-    $headers = Get-McpHeaders
-    if (-not $headers) { return }
-
-    $body = @{
-        jsonrpc = "2.0"
-        method = "tools/call"
-        id = [guid]::NewGuid().ToString()
-        params = @{
-            name = "complete-session"
-            arguments = @{
-                sessionId = $script:SessionId
-                machineId = $script:MachineId
-                summary = $Summary
-            }
-        }
-    } | ConvertTo-Json -Depth 5
-
     try {
-        Invoke-RestMethod -Uri "$script:McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+        $args_ = @{
+            sessionId = $script:SessionId
+            machineId = $script:MachineId
+        }
+        if ($Summary) { $args_.summary = $Summary }
+
+        Invoke-McpTool -ToolName "complete-session" -Arguments $args_ | Out-Null
         Write-Host "Session completed: $($script:SessionId)" -ForegroundColor Green
     }
     catch {
@@ -149,6 +166,27 @@ function Complete-TrackerSession {
 
     $script:SessionId = $null
 }
+
+function Get-TrackerSession {
+    [CmdletBinding()]
+    param(
+        [string]$SessionId = $script:SessionId,
+        [string]$MachineId = $script:MachineId
+    )
+
+    if (-not $script:BaseUrl) {
+        Initialize-TrackerConnection
+    }
+
+    try {
+        return Invoke-TrackerApi -Path "/api/sessions/$MachineId/$SessionId"
+    }
+    catch {
+        Write-Warning "Failed to get session: $_"
+    }
+}
+
+# ── Task management ──────────────────────────────────────────────────
 
 function Set-TrackerTask {
     [CmdletBinding()]
@@ -164,39 +202,25 @@ function Set-TrackerTask {
         [string]$Source = "prompt"
     )
 
-    if (-not $script:SessionId -or -not $script:McpUrl) {
+    if (-not $script:SessionId -or -not $script:BaseUrl) {
         Write-Warning "No active session. Call Start-TrackerSession first."
         return
     }
 
-    $headers = Get-McpHeaders
-    if (-not $headers) { return }
-
-    $arguments = @{
-        sessionId = $script:SessionId
-        queueName = $QueueName
-        title = $Title
-        status = $Status
-        source = $Source
-    }
-    if ($TaskId) { $arguments.taskId = $TaskId }
-    if ($Result) { $arguments.result = $Result }
-    if ($ErrorMessage) { $arguments.errorMessage = $ErrorMessage }
-
-    $body = @{
-        jsonrpc = "2.0"
-        method = "tools/call"
-        id = [guid]::NewGuid().ToString()
-        params = @{
-            name = "set-task"
-            arguments = $arguments
-        }
-    } | ConvertTo-Json -Depth 5
-
     try {
-        $response = Invoke-RestMethod -Uri "$script:McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-        if ($response.result.content) {
-            $taskData = $response.result.content[0].text | ConvertFrom-Json
+        $args_ = @{
+            sessionId = $script:SessionId
+            queueName = $QueueName
+            title     = $Title
+            status    = $Status
+            source    = $Source
+        }
+        if ($TaskId) { $args_.taskId = $TaskId }
+        if ($Result) { $args_.result = $Result }
+        if ($ErrorMessage) { $args_.errorMessage = $ErrorMessage }
+
+        $taskData = Invoke-McpTool -ToolName "set-task" -Arguments $args_
+        if ($taskData.id) {
             return $taskData.id
         }
     }
@@ -216,38 +240,27 @@ function Add-TrackerLog {
         [string]$Message
     )
 
-    if (-not $script:McpUrl) { return }
-
-    $headers = Get-McpHeaders
-    if (-not $headers) { return }
-
-    $body = @{
-        jsonrpc = "2.0"
-        method = "tools/call"
-        id = [guid]::NewGuid().ToString()
-        params = @{
-            name = "add-log"
-            arguments = @{
-                taskId = $TaskId
-                logType = $LogType
-                message = $Message
-            }
-        }
-    } | ConvertTo-Json -Depth 5
+    if (-not $script:BaseUrl) { return }
 
     try {
-        Invoke-RestMethod -Uri "$script:McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+        Invoke-McpTool -ToolName "add-log" -Arguments @{
+            taskId  = $TaskId
+            logType = $LogType
+            message = $Message
+        } | Out-Null
     }
     catch {
         Write-Verbose "Failed to add log: $_"
     }
 }
 
+# ── Heartbeat background job ─────────────────────────────────────────
+
 function Start-HeartbeatJob {
-    Stop-HeartbeatJob  # Clean up any existing job
+    Stop-HeartbeatJob
 
     $script:HeartbeatJob = Start-Job -ScriptBlock {
-        param($McpUrl, $SessionId, $MachineId, $ResourceId)
+        param($BaseUrl, $SessionId, $MachineId, $ResourceId)
         while ($true) {
             Start-Sleep -Seconds 60
             try {
@@ -255,27 +268,27 @@ function Start-HeartbeatJob {
                 if (-not $token) { continue }
                 $headers = @{
                     "Authorization" = "Bearer $token"
-                    "Content-Type" = "application/json"
+                    "Content-Type"  = "application/json"
                 }
                 $body = @{
                     jsonrpc = "2.0"
-                    method = "tools/call"
-                    id = [guid]::NewGuid().ToString()
-                    params = @{
-                        name = "heartbeat"
+                    method  = "tools/call"
+                    id      = [guid]::NewGuid().ToString()
+                    params  = @{
+                        name      = "heartbeat"
                         arguments = @{
                             sessionId = $SessionId
                             machineId = $MachineId
                         }
                     }
                 } | ConvertTo-Json -Depth 5
-                Invoke-RestMethod -Uri "$McpUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+                Invoke-RestMethod -Uri "$BaseUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
             }
             catch {
-                # Silently continue - heartbeat is best-effort
+                # Best-effort; silently continue
             }
         }
-    } -ArgumentList $script:McpUrl, $script:SessionId, $script:MachineId, "api://4c8148f5-c913-40c5-863f-1c019821eac4"
+    } -ArgumentList $script:BaseUrl, $script:SessionId, $script:MachineId, $script:ResourceId
 }
 
 function Stop-HeartbeatJob {
@@ -286,7 +299,8 @@ function Stop-HeartbeatJob {
     }
 }
 
-# Register exit handler to complete session on shutdown
+# ── Lifecycle ─────────────────────────────────────────────────────────
+
 Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
     if ($script:SessionId) {
         Complete-TrackerSession -Summary "Session ended (process exit)"
@@ -298,6 +312,7 @@ Export-ModuleMember -Function @(
     'Start-TrackerSession',
     'Send-TrackerHeartbeat',
     'Complete-TrackerSession',
+    'Get-TrackerSession',
     'Set-TrackerTask',
     'Add-TrackerLog'
 )

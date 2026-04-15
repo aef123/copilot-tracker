@@ -136,4 +136,97 @@ public class StaleSessionCleanupServiceTests
                 It.IsAny<string?>()),
             Times.AtLeastOnce);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_NoStaleSessions_DoesNotThrow()
+    {
+        var (service, sessionRepo) = CreateService(intervalSeconds: 1, initialDelaySeconds: 0);
+
+        // Default mock already returns empty Items
+        using var cts = new CancellationTokenSource();
+        await service.StartAsync(cts.Token);
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+
+        // Verify it ran at least once with no errors
+        sessionRepo.Verify(
+            r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), It.IsAny<string?>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ProcessesStaleSessions()
+    {
+        var sessionRepo = new Mock<ISessionRepository>();
+        var staleSession = new Session
+        {
+            Id = "stale-1",
+            MachineId = "m1",
+            Status = SessionStatus.Active,
+            LastHeartbeat = DateTime.UtcNow.AddHours(-1)
+        };
+
+        sessionRepo
+            .Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), null))
+            .ReturnsAsync(new PagedResult<Session> { Items = [staleSession], ContinuationToken = null });
+        sessionRepo
+            .Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), It.Is<string?>(t => t != null)))
+            .ReturnsAsync(new PagedResult<Session> { Items = [] });
+        sessionRepo
+            .Setup(r => r.UpdateAsync(It.IsAny<Session>()))
+            .ReturnsAsync((Session s) => s);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(sessionRepo.Object);
+        services.AddSingleton(Mock.Of<ITaskLogRepository>());
+        services.AddSingleton<ILogger<SessionService>>(NullLogger<SessionService>.Instance);
+        services.AddScoped<SessionService>();
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["StaleCleanup:IntervalMinutes"] = (1.0 / 60).ToString(),
+                ["StaleCleanup:ThresholdMinutes"] = "10",
+                ["StaleCleanup:InitialDelaySeconds"] = "0"
+            })
+            .Build();
+
+        var service = new StaleSessionCleanupService(
+            services.BuildServiceProvider(),
+            NullLogger<StaleSessionCleanupService>.Instance,
+            config);
+
+        using var cts = new CancellationTokenSource();
+        await service.StartAsync(cts.Token);
+
+        await Task.Delay(TimeSpan.FromSeconds(3));
+
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+
+        sessionRepo.Verify(r => r.UpdateAsync(It.Is<Session>(s => s.Status == SessionStatus.Stale)), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ImmediateCancellation_CompletesPromptly()
+    {
+        var (service, _) = CreateService(intervalSeconds: 60, initialDelaySeconds: 0);
+
+        using var cts = new CancellationTokenSource();
+        await service.StartAsync(cts.Token);
+
+        // Cancel immediately
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+
+        var executeTask = service.ExecuteTask;
+        if (executeTask is not null)
+        {
+            var completed = await Task.WhenAny(executeTask, Task.Delay(TimeSpan.FromSeconds(3)));
+            completed.Should().Be(executeTask, "Service should stop promptly on cancellation");
+        }
+    }
 }

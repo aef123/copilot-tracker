@@ -22,7 +22,7 @@ app.UseAuthorization();
 app.UseStaticFiles();
 
 app.MapControllers();
-app.MapMcp();
+app.MapMcp("/mcp");
 
 // SPA fallback (must be last)
 app.MapFallbackToFile("index.html");
