@@ -9,7 +9,7 @@ $script:SessionId = $null
 $script:MachineId = $null
 $script:HeartbeatJob = $null
 $script:ResourceId = "api://4c8148f5-c913-40c5-863f-1c019821eac4"
-$script:TenantId = "5df6d88f-0d78-491b-9617-8b43a209ba73"
+$script:TenantId = if ($env:COPILOT_TRACKER_TENANT_ID) { $env:COPILOT_TRACKER_TENANT_ID } else { "5df6d88f-0d78-491b-9617-8b43a209ba73" }
 
 # ── Connection ────────────────────────────────────────────────────────
 

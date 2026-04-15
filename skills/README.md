@@ -83,8 +83,10 @@ Complete-TrackerSession -Summary "Feature complete"
 
 ## MCP Tools (server-side)
 
-These are the tools exposed on the `/mcp` endpoint. The PowerShell module wraps them,
-but Copilot CLI can also call them directly as MCP tool calls:
+These tools are exposed on the `/mcp` endpoint. The PowerShell module wraps them
+with Entra bearer token authentication. They are **not directly callable** by the
+Copilot CLI because the endpoint requires auth that the CLI's built-in MCP support
+doesn't handle.
 
 | Tool | Description |
 |------|-------------|
