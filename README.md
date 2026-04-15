@@ -41,7 +41,7 @@ Run the `initialize-machine` skill from the Copilot CLI:
 > initialize machine for copilot session tracker
 ```
 
-This copies the PowerShell module to `~/.copilot/copilot-tracker/` and adds tracking directives to your `copilot-instructions.md`. See [skills/initialize-machine/](skills/initialize-machine/) for details.
+This copies the PowerShell module to `~/.copilot/copilot-tracker/` and adds tracking directives to your `copilot-instructions.md`. See [plugins/copilot-session-tracker/](plugins/copilot-session-tracker/) for details.
 
 After initialization, every Copilot CLI session will automatically:
 - Register itself with the tracker on startup
@@ -115,11 +115,11 @@ src/
   CopilotTracker.Core/       Domain models, services, interfaces
   CopilotTracker.Cosmos/     Cosmos DB repository implementations
 dashboard/                   React/Vite SPA
-skills/
-  shared/                    PowerShell module + startup script
-  initialize-machine/        Machine setup skill
-templates/
-  copilot-instructions-snippet.md   Template for copilot-instructions.md
+plugins/
+  copilot-session-tracker/   Installable Copilot CLI plugin
+    shared/                  PowerShell module + startup script (canonical source)
+    skills/initialize-machine/  Machine setup skill (SKILL.md)
+    templates/               copilot-instructions.md snippet template
 deploy/                      Bicep IaC + setup scripts
 tests/                       .NET + PowerShell tests
 ```

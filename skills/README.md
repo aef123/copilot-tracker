@@ -38,8 +38,8 @@ $env:COPILOT_TRACKER_URL = "http://localhost:5000"
 
 | File | Purpose |
 |------|---------|
-| `shared/CopilotTracker.psm1` | Main PowerShell module (all exported functions) |
-| `shared/Start-TrackerSession.ps1` | Startup script called from `copilot-instructions.md` |
+| `../plugins/copilot-session-tracker/shared/CopilotTracker.psm1` | Main PowerShell module (all exported functions) |
+| `../plugins/copilot-session-tracker/shared/Start-TrackerSession.ps1` | Startup script called from `copilot-instructions.md` |
 
 ## Usage
 
@@ -47,7 +47,7 @@ The module is loaded automatically by Copilot CLI via the custom instructions
 in `.github/copilot-instructions.md`. For manual or scripted usage:
 
 ```powershell
-Import-Module ./skills/shared/CopilotTracker.psm1
+Import-Module ./plugins/copilot-session-tracker/shared/CopilotTracker.psm1
 
 # Connect (uses env var or default if no parameter)
 Initialize-TrackerConnection -BaseUrl "http://localhost:5000"

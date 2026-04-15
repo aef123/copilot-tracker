@@ -1,6 +1,6 @@
 BeforeAll {
     # Force-import the module so we can test both exported and internal functions
-    $modulePath = "$PSScriptRoot\..\..\skills\shared\CopilotTracker.psm1"
+    $modulePath = "$PSScriptRoot\..\..\plugins\copilot-session-tracker\shared\CopilotTracker.psm1"
     Import-Module $modulePath -Force
 }
 
