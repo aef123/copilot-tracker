@@ -1,20 +1,39 @@
+using CopilotTracker.Core;
+using CopilotTracker.Cosmos;
+using CopilotTracker.Server.Auth;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// TODO: Add authentication (Phase 1)
-// TODO: Add MCP server (Phase 1)
-// TODO: Add Cosmos DB repositories (Phase 1)
-// TODO: Add services (Phase 2)
+// Authentication
+builder.Services.AddEntraAuth(builder.Configuration);
+
+// Cosmos DB repositories
+builder.Services.AddCosmosRepositories(builder.Configuration);
+
+// Core services
+builder.Services.AddCoreServices();
+
+// HttpContextAccessor for MCP tools to access user claims
+builder.Services.AddHttpContextAccessor();
+
+// MCP Server (discovers [McpServerToolType] classes in this assembly)
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithToolsFromAssembly();
 
 var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseStaticFiles();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
-// TODO: Map API controllers (Phase 2)
-// TODO: Map MCP endpoint (Phase 1)
+// MCP endpoint
+app.MapMcp();
 
-// SPA fallback
+// SPA fallback (must be last)
 app.MapFallbackToFile("index.html");
 
 app.Run();
