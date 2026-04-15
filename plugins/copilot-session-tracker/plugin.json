@@ -1,0 +1,10 @@
+{
+  "name": "copilot-session-tracker",
+  "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Run 'initialize-machine' after installing.",
+  "version": "2.0.0",
+  "author": {
+    "name": "aef123"
+  },
+  "keywords": ["session-tracking", "azure", "dashboard", "mcp", "telemetry"],
+  "skills": "skills/"
+}

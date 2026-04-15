@@ -1,0 +1,29 @@
+{
+  "name": "copilot-tracker-marketplace",
+  "owner": {
+    "name": "aef123",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Copilot Session Tracker — track CLI sessions, tasks, and progress in real time",
+    "version": "2.0.0"
+  },
+  "plugins": [
+    {
+      "name": "copilot-session-tracker",
+      "source": "plugins/copilot-session-tracker",
+      "version": "2.0.0",
+      "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Requires a deployed tracker server.",
+      "author": {
+        "name": "aef123"
+      },
+      "keywords": [
+        "session-tracking",
+        "azure",
+        "dashboard",
+        "mcp",
+        "telemetry"
+      ]
+    }
+  ]
+}
