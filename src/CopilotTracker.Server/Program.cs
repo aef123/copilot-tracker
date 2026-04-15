@@ -30,29 +30,6 @@ app.UseStaticFiles();
 app.MapControllers();
 app.MapMcp("/mcp").RequireAuthorization();
 
-// Diagnostic endpoint to test Cosmos connectivity
-app.MapGet("/api/diag", async (IServiceProvider sp) =>
-{
-    try
-    {
-        var db = sp.GetRequiredService<Microsoft.Azure.Cosmos.Database>();
-        var container = db.GetContainer("sessions");
-        var response = await container.ReadContainerAsync();
-        return Results.Ok(new { status = "ok", container = response.Resource.Id });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new
-        {
-            status = "error",
-            error = ex.GetType().FullName,
-            message = ex.Message,
-            inner = ex.InnerException?.GetType().FullName,
-            innerMessage = ex.InnerException?.Message
-        }, statusCode: 500);
-    }
-}).AllowAnonymous();
-
 // SPA fallback — exclude API and MCP routes so bad paths return 404, not HTML
 app.MapFallbackToFile("{**path:nonfile}", "index.html")
     .Add(endpointBuilder =>
