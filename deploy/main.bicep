@@ -12,7 +12,7 @@ param cosmosAccountName string = 'cosmos-copilot-tracker'
 param location string = resourceGroup().location
 
 @description('App Service Plan SKU')
-param appServicePlanSku string = 'B1'
+param appServicePlanSku string = 'F1'
 
 @description('Entra tenant ID for token validation')
 param tenantId string
@@ -175,7 +175,7 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlan.id
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      alwaysOn: true
+      alwaysOn: appServicePlanSku != 'F1'
       appSettings: [
         { name: 'Cosmos__Endpoint', value: cosmosAccount.properties.documentEndpoint }
         { name: 'Cosmos__Database', value: cosmosDatabaseName }
