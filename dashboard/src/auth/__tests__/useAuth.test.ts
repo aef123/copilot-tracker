@@ -160,5 +160,172 @@ describe("useAuth", () => {
       expect(consoleSpy).toHaveBeenCalledWith("Token acquisition failed:", expect.any(Error));
       consoleSpy.mockRestore();
     });
+
+    it("falls back to popup on interaction_required error", async () => {
+      mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+      const interactionError = new Error("interaction_required");
+      interactionError.name = "InteractionRequiredAuthError";
+      mockInstance.acquireTokenSilent.mockRejectedValue(interactionError);
+      mockInstance.acquireTokenPopup.mockResolvedValue({ accessToken: "interactive-token" });
+
+      const { result } = renderHook(() => useAuth());
+      const token = await result.current.getAccessToken();
+
+      expect(token).toBe("interactive-token");
+      expect(mockInstance.acquireTokenPopup).toHaveBeenCalledWith({ scopes: ["api://test/scope"] });
+    });
+
+    it("handles network failure during silent token acquisition", async () => {
+      mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+      mockInstance.acquireTokenSilent.mockRejectedValue(new TypeError("Failed to fetch"));
+      mockInstance.acquireTokenPopup.mockResolvedValue({ accessToken: "fallback-token" });
+
+      const { result } = renderHook(() => useAuth());
+      const token = await result.current.getAccessToken();
+
+      expect(token).toBe("fallback-token");
+    });
+
+    it("returns null when popup is cancelled by user", async () => {
+      mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInstance.acquireTokenSilent.mockRejectedValue(new Error("silent failed"));
+      const cancelError = new Error("user_cancelled");
+      cancelError.name = "BrowserAuthError";
+      mockInstance.acquireTokenPopup.mockRejectedValue(cancelError);
+
+      const { result } = renderHook(() => useAuth());
+      const token = await result.current.getAccessToken();
+
+      expect(token).toBeNull();
+      consoleSpy.mockRestore();
+    });
+
+    it("passes correct account to acquireTokenSilent", async () => {
+      const account = { name: "User", username: "u@t.com", localAccountId: "1" };
+      mockAccounts.push(account);
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+      mockInstance.acquireTokenSilent.mockResolvedValue({ accessToken: "tok" });
+
+      const { result } = renderHook(() => useAuth());
+      await result.current.getAccessToken();
+
+      expect(mockInstance.acquireTokenSilent).toHaveBeenCalledWith({
+        scopes: ["api://test/scope"],
+        account,
+      });
+    });
+
+    it("uses first account when multiple accounts exist", async () => {
+      const account1 = { name: "User1", username: "u1@t.com", localAccountId: "1" };
+      const account2 = { name: "User2", username: "u2@t.com", localAccountId: "2" };
+      mockAccounts.push(account1, account2);
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+      mockInstance.acquireTokenSilent.mockResolvedValue({ accessToken: "tok" });
+
+      const { result } = renderHook(() => useAuth());
+      await result.current.getAccessToken();
+
+      expect(mockInstance.acquireTokenSilent).toHaveBeenCalledWith(
+        expect.objectContaining({ account: account1 })
+      );
+    });
+  });
+
+  describe("login edge cases", () => {
+    it("handles user cancelling login popup", async () => {
+      vi.mocked(useIsAuthenticated).mockReturnValue(false);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const cancelError = new Error("user_cancelled: User closed the popup");
+      cancelError.name = "BrowserAuthError";
+      mockInstance.loginPopup.mockRejectedValue(cancelError);
+
+      const { result } = renderHook(() => useAuth());
+      await act(async () => {
+        await result.current.login();
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith("Login failed:", cancelError);
+      consoleSpy.mockRestore();
+    });
+
+    it("handles multiple rapid login attempts without throwing", async () => {
+      vi.mocked(useIsAuthenticated).mockReturnValue(false);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInstance.loginPopup
+        .mockRejectedValueOnce(new Error("interaction_in_progress"))
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() => useAuth());
+
+      // First attempt fails with interaction_in_progress
+      await act(async () => { await result.current.login(); });
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+      // Second attempt succeeds
+      await act(async () => { await result.current.login(); });
+      expect(mockInstance.loginPopup).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it("handles network failure during login", async () => {
+      vi.mocked(useIsAuthenticated).mockReturnValue(false);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInstance.loginPopup.mockRejectedValue(new TypeError("Failed to fetch"));
+
+      const { result } = renderHook(() => useAuth());
+      await act(async () => {
+        await result.current.login();
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith("Login failed:", expect.any(TypeError));
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("logout edge cases", () => {
+    it("can be called when already unauthenticated", () => {
+      vi.mocked(useIsAuthenticated).mockReturnValue(false);
+
+      const { result } = renderHook(() => useAuth());
+      result.current.logout();
+
+      expect(mockInstance.logoutPopup).toHaveBeenCalled();
+    });
+  });
+
+  describe("account detection", () => {
+    it("updates user when account changes", () => {
+      mockAccounts.push({ name: "First", username: "first@t.com", localAccountId: "1" });
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+
+      const { result, rerender } = renderHook(() => useAuth());
+      expect(result.current.user?.name).toBe("First");
+
+      // Simulate account change
+      mockAccounts.length = 0;
+      mockAccounts.push({ name: "Second", username: "second@t.com", localAccountId: "2" });
+      rerender();
+
+      expect(result.current.user?.name).toBe("Second");
+      expect(result.current.user?.email).toBe("second@t.com");
+    });
+
+    it("becomes null user when all accounts removed", () => {
+      mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
+      vi.mocked(useIsAuthenticated).mockReturnValue(true);
+
+      const { result, rerender } = renderHook(() => useAuth());
+      expect(result.current.user).not.toBeNull();
+
+      mockAccounts.length = 0;
+      vi.mocked(useIsAuthenticated).mockReturnValue(false);
+      rerender();
+
+      expect(result.current.user).toBeNull();
+    });
   });
 });

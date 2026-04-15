@@ -197,5 +197,122 @@ describe("apiClient", () => {
         })
       );
     });
+
+    it("sends PUT request with no body", async () => {
+      setupAuth();
+      mockFetchResponse({});
+
+      await apiPut("/api/items/1");
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/items/1",
+        expect.objectContaining({
+          method: "PUT",
+          body: undefined,
+        })
+      );
+    });
+  });
+
+  describe("auth error responses", () => {
+    it("throws on 403 Forbidden", async () => {
+      setupAuth();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve("Forbidden"),
+      });
+
+      await expect(apiFetch("/api/admin")).rejects.toThrow("API error 403: Forbidden");
+    });
+
+    it("error message includes response body for 401", async () => {
+      setupAuth();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Token expired"),
+      });
+
+      await expect(apiFetch("/api/secure")).rejects.toThrow("API error 401: Token expired");
+    });
+
+    it("error message includes response body for 403", async () => {
+      setupAuth();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve("Insufficient permissions"),
+      });
+
+      await expect(apiFetch("/api/admin")).rejects.toThrow(
+        "API error 403: Insufficient permissions"
+      );
+    });
+  });
+
+  describe("token acquisition in getAuthHeaders", () => {
+    it("acquires token silently with correct scopes", async () => {
+      setupAuth("fresh-token");
+      mockFetchResponse({});
+
+      await apiGet("/api/test");
+
+      expect(mockMsal.acquireTokenSilent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scopes: ["api://test/scope"],
+          account: { username: "user@test.com" },
+        })
+      );
+    });
+
+    it("uses first account from getAllAccounts", async () => {
+      mockMsal.getAllAccounts.mockReturnValue([
+        { username: "first@test.com" },
+        { username: "second@test.com" },
+      ] as any);
+      mockMsal.acquireTokenSilent.mockResolvedValue({ accessToken: "tok" } as any);
+      mockFetchResponse({});
+
+      await apiGet("/api/test");
+
+      expect(mockMsal.acquireTokenSilent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          account: { username: "first@test.com" },
+        })
+      );
+    });
+
+    it("propagates token error without masking the cause", async () => {
+      mockMsal.getAllAccounts.mockReturnValue([{ username: "u" }] as any);
+      mockMsal.acquireTokenSilent.mockRejectedValue(new Error("consent_required"));
+
+      await expect(apiGet("/api/test")).rejects.toThrow("Failed to acquire token");
+    });
+  });
+
+  describe("concurrent requests", () => {
+    it("each request gets its own auth header", async () => {
+      mockMsal.getAllAccounts.mockReturnValue([{ username: "user@test.com" }] as any);
+      mockMsal.acquireTokenSilent
+        .mockResolvedValueOnce({ accessToken: "token-1" } as any)
+        .mockResolvedValueOnce({ accessToken: "token-2" } as any);
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ a: 1 }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ b: 2 }),
+        });
+
+      const [r1, r2] = await Promise.all([apiGet("/api/a"), apiGet("/api/b")]);
+
+      expect(r1).toEqual({ a: 1 });
+      expect(r2).toEqual({ b: 2 });
+      expect(mockMsal.acquireTokenSilent).toHaveBeenCalledTimes(2);
+    });
   });
 });
