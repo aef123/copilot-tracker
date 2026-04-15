@@ -9,6 +9,7 @@ $script:SessionId = $null
 $script:MachineId = $null
 $script:HeartbeatJob = $null
 $script:ResourceId = "api://4c8148f5-c913-40c5-863f-1c019821eac4"
+$script:TenantId = "5df6d88f-0d78-491b-9617-8b43a209ba73"
 
 # ── Connection ────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ function Get-TrackerHeaders {
     [CmdletBinding()]
     param()
 
-    $token = az account get-access-token --resource $script:ResourceId --query accessToken -o tsv 2>$null
+    $token = az account get-access-token --resource $script:ResourceId --tenant $script:TenantId --query accessToken -o tsv 2>$null
     if (-not $token) {
         Write-Warning "Failed to get access token. Run 'az login' first."
         return $null
@@ -260,11 +261,11 @@ function Start-HeartbeatJob {
     Stop-HeartbeatJob
 
     $script:HeartbeatJob = Start-Job -ScriptBlock {
-        param($BaseUrl, $SessionId, $MachineId, $ResourceId)
+        param($BaseUrl, $SessionId, $MachineId, $ResourceId, $TenantId)
         while ($true) {
             Start-Sleep -Seconds 60
             try {
-                $token = az account get-access-token --resource $ResourceId --query accessToken -o tsv 2>$null
+                $token = az account get-access-token --resource $ResourceId --tenant $TenantId --query accessToken -o tsv 2>$null
                 if (-not $token) { continue }
                 $headers = @{
                     "Authorization" = "Bearer $token"
@@ -288,7 +289,7 @@ function Start-HeartbeatJob {
                 # Best-effort; silently continue
             }
         }
-    } -ArgumentList $script:BaseUrl, $script:SessionId, $script:MachineId, $script:ResourceId
+    } -ArgumentList $script:BaseUrl, $script:SessionId, $script:MachineId, $script:ResourceId, $script:TenantId
 }
 
 function Stop-HeartbeatJob {
