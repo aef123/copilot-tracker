@@ -57,6 +57,7 @@ The PowerShell module resolves settings in this order:
 |---------|---------------------|---------|
 | Server URL | `COPILOT_TRACKER_URL` | `https://copilot-tracker.azurewebsites.net` |
 | Tenant ID | `COPILOT_TRACKER_TENANT_ID` | `5df6d88f-0d78-491b-9617-8b43a209ba73` |
+| Resource ID | `COPILOT_TRACKER_RESOURCE_ID` | `api://4c8148f5-c913-40c5-863f-1c019821eac4` |
 
 For local development:
 ```powershell

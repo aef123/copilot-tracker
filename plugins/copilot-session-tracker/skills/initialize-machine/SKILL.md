@@ -39,13 +39,24 @@ Wait for the user to respond. Store as `$tenantId`.
 $tenantId = "<user-provided-or-default>"
 ```
 
+### 0c. App Registration Resource ID
+
+Ask the user: **"What is the Entra app registration resource ID (Application ID URI)? (Default: `api://4c8148f5-c913-40c5-863f-1c019821eac4`)"**
+
+Wait for the user to respond. Store as `$resourceId`.
+
+```powershell
+$resourceId = "<user-provided-or-default>"
+```
+
 ### Confirmation Gate
 
 Display the collected parameters and ask: **"I'll configure the tracker with these settings. Proceed?"**
 
 ```
-Server URL: <server-url>
-Tenant ID:  <tenant-id>
+Server URL:  <server-url>
+Tenant ID:   <tenant-id>
+Resource ID: <resource-id>
 ```
 
 **Do NOT proceed until the user explicitly confirms.**
@@ -71,11 +82,11 @@ if ($LASTEXITCODE -ne 0) {
 Write-Output "✅ Logged in to Azure CLI."
 
 # 1c. Test token acquisition for the tracker tenant
-$token = az account get-access-token --resource "api://4c8148f5-c913-40c5-863f-1c019821eac4" --tenant $tenantId --query accessToken -o tsv 2>&1
+$token = az account get-access-token --resource $resourceId --tenant $tenantId --query accessToken -o tsv 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "⚠️  Cannot get a token for tenant $tenantId. Attempting login..."
     az login --tenant $tenantId
-    $token = az account get-access-token --resource "api://4c8148f5-c913-40c5-863f-1c019821eac4" --tenant $tenantId --query accessToken -o tsv 2>&1
+    $token = az account get-access-token --resource $resourceId --tenant $tenantId --query accessToken -o tsv 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Still cannot get a token after login attempt."
         return
@@ -125,8 +136,8 @@ if (-not $skillDir) {
 
 # Fallback to repo source if running from repo directory
 if (-not $sharedDir -or -not (Test-Path $sharedDir)) {
-    $repoShared = Join-Path $PWD "skills\shared"
-    $repoTemplates = Join-Path $PWD "templates"
+    $repoShared = Join-Path $PWD "plugins\copilot-session-tracker\shared"
+    $repoTemplates = Join-Path $PWD "plugins\copilot-session-tracker\templates"
     if (Test-Path $repoShared) {
         $sharedDir = $repoShared
         $templateDir = $repoTemplates
@@ -171,6 +182,19 @@ if ($tenantId -ne "5df6d88f-0d78-491b-9617-8b43a209ba73") {
         [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_TENANT_ID", $null, "User")
         $env:COPILOT_TRACKER_TENANT_ID = $null
         Write-Output "✅ Cleared COPILOT_TRACKER_TENANT_ID (using default)"
+    }
+}
+
+# Resource ID
+if ($resourceId -ne "api://4c8148f5-c913-40c5-863f-1c019821eac4") {
+    [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", $resourceId, "User")
+    $env:COPILOT_TRACKER_RESOURCE_ID = $resourceId
+    Write-Output "✅ Set COPILOT_TRACKER_RESOURCE_ID = $resourceId"
+} else {
+    if ([System.Environment]::GetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", "User")) {
+        [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", $null, "User")
+        $env:COPILOT_TRACKER_RESOURCE_ID = $null
+        Write-Output "✅ Cleared COPILOT_TRACKER_RESOURCE_ID (using default)"
     }
 }
 ```
@@ -264,6 +288,7 @@ Module installed: $env:USERPROFILE\.copilot\copilot-tracker\
 Instructions:     $env:USERPROFILE\.copilot\copilot-instructions.md (updated)
 Server:           $serverUrl
 Tenant:           $tenantId
+Resource ID:      $resourceId
 
 Copilot CLI will now automatically track sessions on this machine.
 To test: start a new Copilot CLI session and check the dashboard.
