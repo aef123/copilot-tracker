@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CopilotTracker.Core/CopilotTracker.Core.csproj" />
+    <Project Path="src/CopilotTracker.Cosmos/CopilotTracker.Cosmos.csproj" />
+    <Project Path="src/CopilotTracker.Server/CopilotTracker.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CopilotTracker.Core.Tests/CopilotTracker.Core.Tests.csproj" />
+    <Project Path="tests/CopilotTracker.Cosmos.Tests/CopilotTracker.Cosmos.Tests.csproj" />
+    <Project Path="tests/CopilotTracker.Server.Tests/CopilotTracker.Server.Tests.csproj" />
+  </Folder>
+</Solution>
