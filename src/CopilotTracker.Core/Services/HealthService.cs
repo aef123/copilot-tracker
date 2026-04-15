@@ -19,7 +19,7 @@ public class HealthService
         _tasks = tasks;
     }
 
-    public async Task<HealthSummary> GetHealthAsync()
+    public virtual async Task<HealthSummary> GetHealthAsync()
     {
         if (_cached != null && DateTime.UtcNow - _cachedAt < _cacheTtl)
             return _cached;

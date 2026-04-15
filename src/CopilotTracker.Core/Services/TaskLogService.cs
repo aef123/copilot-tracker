@@ -29,7 +29,7 @@ public class TaskLogService
         return await _logs.GetByTaskAsync(taskId);
     }
 
-    public async Task<PagedResult<TaskLog>> GetLogsPagedAsync(
+    public virtual async Task<PagedResult<TaskLog>> GetLogsPagedAsync(
         string taskId, string? continuationToken, int pageSize)
     {
         return await _logs.GetByTaskPagedAsync(taskId, continuationToken, pageSize);

@@ -84,12 +84,12 @@ public class TaskService
         return task;
     }
 
-    public async Task<TrackerTask?> GetAsync(string id, string queueName)
+    public virtual async Task<TrackerTask?> GetAsync(string id, string queueName)
     {
         return await _tasks.GetAsync(id, queueName);
     }
 
-    public async Task<PagedResult<TrackerTask>> ListAsync(
+    public virtual async Task<PagedResult<TrackerTask>> ListAsync(
         string? queueName, string? status, string? continuationToken, int pageSize)
     {
         return await _tasks.ListAsync(queueName, status, continuationToken, pageSize);

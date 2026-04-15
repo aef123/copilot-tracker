@@ -74,12 +74,12 @@ public class SessionService
         return await _sessions.UpdateAsync(session);
     }
 
-    public async Task<Session?> GetAsync(string id, string machineId)
+    public virtual async Task<Session?> GetAsync(string id, string machineId)
     {
         return await _sessions.GetAsync(id, machineId);
     }
 
-    public async Task<PagedResult<Session>> ListAsync(
+    public virtual async Task<PagedResult<Session>> ListAsync(
         string? machineId, string? status, DateTime? since, string? continuationToken, int pageSize)
     {
         return await _sessions.ListAsync(machineId, status, since, continuationToken, pageSize);
