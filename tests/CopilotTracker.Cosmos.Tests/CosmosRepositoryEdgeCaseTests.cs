@@ -110,7 +110,7 @@ public class CosmosSessionRepositoryEdgeCaseTests
     public async Task GetAsync_NotFound_ReturnsNull()
     {
         _mockContainer
-            .Setup(c => c.ReadItemAsync<Session>(It.IsAny<string>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.ReadItemAsync<Session>("nonexistent", new PartitionKey("machine-1"),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.NotFound));
 
@@ -124,12 +124,12 @@ public class CosmosSessionRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Conflict_ThrowsCosmosException()
     {
+        var session = MakeSession();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<Session>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(session, new PartitionKey(session.MachineId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.Conflict));
 
-        var session = MakeSession();
         var act = () => _repo.CreateAsync(session);
 
         (await act.Should().ThrowAsync<CosmosException>())
@@ -144,7 +144,7 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var session = MakeSession();
         var response = CosmosMockHelpers.MockItemResponse(session);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(session, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(session, new PartitionKey(session.MachineId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
@@ -158,12 +158,13 @@ public class CosmosSessionRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Throttled_ThrowsCosmosException()
     {
+        var session = MakeSession();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<Session>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(session, new PartitionKey(session.MachineId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.TooManyRequests));
 
-        var act = () => _repo.CreateAsync(MakeSession());
+        var act = () => _repo.CreateAsync(session);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.TooManyRequests);
@@ -174,12 +175,13 @@ public class CosmosSessionRepositoryEdgeCaseTests
     [Fact]
     public async Task UpdateAsync_NotFound_ThrowsCosmosException()
     {
+        var session = MakeSession();
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), session.Id,
+                new PartitionKey(session.MachineId), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.NotFound));
 
-        var act = () => _repo.UpdateAsync(MakeSession());
+        var act = () => _repo.UpdateAsync(session);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.NotFound);
@@ -192,17 +194,22 @@ public class CosmosSessionRepositoryEdgeCaseTests
     {
         var session = MakeSession();
         session.UpdatedAt = DateTime.UtcNow.AddDays(-1); // stale timestamp
+        Session? capturedSession = null;
         var response = CosmosMockHelpers.MockItemResponse(session);
 
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), session.Id,
+                new PartitionKey(session.MachineId), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Callback<Session, string, PartitionKey?, ItemRequestOptions?, CancellationToken>(
+                (s, _, _, _, _) => capturedSession = s)
             .ReturnsAsync(response.Object);
 
         var before = DateTime.UtcNow;
         var result = await _repo.UpdateAsync(session);
 
         result.UpdatedAt.Should().BeOnOrAfter(before);
+        capturedSession.Should().NotBeNull();
+        capturedSession!.UpdatedAt.Should().BeOnOrAfter(before);
     }
 
     // --- UpdateAsync: Service Unavailable (503) ---
@@ -210,12 +217,13 @@ public class CosmosSessionRepositoryEdgeCaseTests
     [Fact]
     public async Task UpdateAsync_ServiceUnavailable_ThrowsCosmosException()
     {
+        var session = MakeSession();
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<Session>(), session.Id,
+                new PartitionKey(session.MachineId), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.ServiceUnavailable));
 
-        var act = () => _repo.UpdateAsync(MakeSession());
+        var act = () => _repo.UpdateAsync(session);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.ServiceUnavailable);
@@ -229,7 +237,10 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.machineId = @machineId")
+                    && q.QueryText.Contains("c.status = @status")),
+                It.IsAny<string>(),
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("machine-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetActiveByMachineAsync("machine-1");
@@ -252,7 +263,10 @@ public class CosmosSessionRepositoryEdgeCaseTests
 
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.machineId = @machineId")
+                    && q.QueryText.Contains("c.status = @status")),
+                It.IsAny<string>(),
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("machine-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetActiveByMachineAsync("machine-1");
@@ -268,7 +282,10 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<Session>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("SELECT * FROM c")
+                    && q.QueryText.Contains("ORDER BY c.updatedAt DESC")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync();
@@ -287,7 +304,9 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([session], "next-token");
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), "prev-token", It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("SELECT * FROM c")),
+                "prev-token",
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync(continuationToken: "prev-token");
@@ -305,7 +324,9 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([MakeSession()], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("SELECT * FROM c")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync();
@@ -323,7 +344,11 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([session], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.machineId = @machineId")
+                    && q.QueryText.Contains("c.status = @status")
+                    && q.QueryText.Contains("c.createdAt >= @since")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("m1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync(
@@ -342,7 +367,10 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<Session>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @status")
+                    && q.QueryText.Contains("c.lastHeartbeat < @heartbeatBefore")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.GetStaleSessionsAsync(DateTime.UtcNow);
@@ -359,7 +387,10 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([session], "stale-next");
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @status")
+                    && q.QueryText.Contains("c.lastHeartbeat < @heartbeatBefore")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.MaxItemCount == 10)))
             .Returns(iterator.Object);
 
         var result = await _repo.GetStaleSessionsAsync(DateTime.UtcNow, pageSize: 10);
@@ -377,7 +408,7 @@ public class CosmosSessionRepositoryEdgeCaseTests
         session.Summary = new string('x', 100_000);
         var response = CosmosMockHelpers.MockItemResponse(session);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(session, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(session, new PartitionKey(session.MachineId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
@@ -414,7 +445,7 @@ public class CosmosTaskRepositoryEdgeCaseTests
     public async Task GetAsync_NotFound_ReturnsNull()
     {
         _mockContainer
-            .Setup(c => c.ReadItemAsync<TrackerTask>(It.IsAny<string>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.ReadItemAsync<TrackerTask>("nonexistent", new PartitionKey("default"),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.NotFound));
 
@@ -428,12 +459,13 @@ public class CosmosTaskRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Conflict_ThrowsCosmosException()
     {
+        var task = MakeTask();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<TrackerTask>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(task, new PartitionKey(task.QueueName),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.Conflict));
 
-        var act = () => _repo.CreateAsync(MakeTask());
+        var act = () => _repo.CreateAsync(task);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.Conflict);
@@ -447,7 +479,7 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var task = MakeTask();
         var response = CosmosMockHelpers.MockItemResponse(task);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(task, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(task, new PartitionKey(task.QueueName),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
@@ -461,12 +493,13 @@ public class CosmosTaskRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Throttled_ThrowsCosmosException()
     {
+        var task = MakeTask();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<TrackerTask>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(task, new PartitionKey(task.QueueName),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.TooManyRequests));
 
-        var act = () => _repo.CreateAsync(MakeTask());
+        var act = () => _repo.CreateAsync(task);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.TooManyRequests);
@@ -477,12 +510,13 @@ public class CosmosTaskRepositoryEdgeCaseTests
     [Fact]
     public async Task UpdateAsync_NotFound_ThrowsCosmosException()
     {
+        var task = MakeTask();
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), task.Id,
+                new PartitionKey(task.QueueName), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.NotFound));
 
-        var act = () => _repo.UpdateAsync(MakeTask());
+        var act = () => _repo.UpdateAsync(task);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.NotFound);
@@ -495,17 +529,22 @@ public class CosmosTaskRepositoryEdgeCaseTests
     {
         var task = MakeTask();
         task.UpdatedAt = DateTime.UtcNow.AddDays(-1);
+        TrackerTask? capturedTask = null;
         var response = CosmosMockHelpers.MockItemResponse(task);
 
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), task.Id,
+                new PartitionKey(task.QueueName), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Callback<TrackerTask, string, PartitionKey?, ItemRequestOptions?, CancellationToken>(
+                (t, _, _, _, _) => capturedTask = t)
             .ReturnsAsync(response.Object);
 
         var before = DateTime.UtcNow;
         var result = await _repo.UpdateAsync(task);
 
         result.UpdatedAt.Should().BeOnOrAfter(before);
+        capturedTask.Should().NotBeNull();
+        capturedTask!.UpdatedAt.Should().BeOnOrAfter(before);
     }
 
     // --- UpdateAsync: Service Unavailable ---
@@ -513,12 +552,13 @@ public class CosmosTaskRepositoryEdgeCaseTests
     [Fact]
     public async Task UpdateAsync_ServiceUnavailable_ThrowsCosmosException()
     {
+        var task = MakeTask();
         _mockContainer
-            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), It.IsAny<string>(),
-                It.IsAny<PartitionKey>(), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ReplaceItemAsync(It.IsAny<TrackerTask>(), task.Id,
+                new PartitionKey(task.QueueName), It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.ServiceUnavailable));
 
-        var act = () => _repo.UpdateAsync(MakeTask());
+        var act = () => _repo.UpdateAsync(task);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.ServiceUnavailable);
@@ -532,7 +572,9 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<TrackerTask>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.sessionId = @sessionId")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.GetBySessionAsync("session-1");
@@ -549,7 +591,9 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TrackerTask>([task], "next-token");
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.sessionId = @sessionId")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.GetBySessionAsync("session-1");
@@ -566,7 +610,9 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<TrackerTask>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.queueName = @queueName")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("default"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByQueueAsync("default");
@@ -583,7 +629,10 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TrackerTask>([task], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.queueName = @queueName")
+                    && q.QueryText.Contains("c.status = @status")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("build"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByQueueAsync("build", status: Core.Models.TaskStatus.Started);
@@ -600,7 +649,10 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TrackerTask>([task], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("SELECT * FROM c")
+                    && q.QueryText.Contains("ORDER BY c.createdAt DESC")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync();
@@ -617,7 +669,10 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TrackerTask>([task], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.queueName = @queueName")
+                    && q.QueryText.Contains("c.status = @status")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("deploy"))))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync(queueName: "deploy", status: Core.Models.TaskStatus.Done);
@@ -633,7 +688,9 @@ public class CosmosTaskRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<TrackerTask>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TrackerTask>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("SELECT * FROM c")),
+                (string?)null,
+                It.IsAny<QueryRequestOptions>()))
             .Returns(iterator.Object);
 
         var result = await _repo.ListAsync();
@@ -651,7 +708,7 @@ public class CosmosTaskRepositoryEdgeCaseTests
         task.Title = new string('y', 50_000);
         var response = CosmosMockHelpers.MockItemResponse(task);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(task, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(task, new PartitionKey(task.QueueName),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
@@ -687,12 +744,13 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Conflict_ThrowsCosmosException()
     {
+        var log = MakeLog();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<TaskLog>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(log, new PartitionKey(log.TaskId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.Conflict));
 
-        var act = () => _repo.CreateAsync(MakeLog());
+        var act = () => _repo.CreateAsync(log);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.Conflict);
@@ -706,7 +764,7 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
         var log = MakeLog();
         var response = CosmosMockHelpers.MockItemResponse(log);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(log, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(log, new PartitionKey(log.TaskId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
@@ -720,12 +778,13 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_Throttled_ThrowsCosmosException()
     {
+        var log = MakeLog();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<TaskLog>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(log, new PartitionKey(log.TaskId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.TooManyRequests));
 
-        var act = () => _repo.CreateAsync(MakeLog());
+        var act = () => _repo.CreateAsync(log);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.TooManyRequests);
@@ -736,12 +795,13 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
     [Fact]
     public async Task CreateAsync_ServiceUnavailable_ThrowsCosmosException()
     {
+        var log = MakeLog();
         _mockContainer
-            .Setup(c => c.CreateItemAsync(It.IsAny<TaskLog>(), It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(log, new PartitionKey(log.TaskId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(CosmosMockHelpers.CreateCosmosException(HttpStatusCode.ServiceUnavailable));
 
-        var act = () => _repo.CreateAsync(MakeLog());
+        var act = () => _repo.CreateAsync(log);
 
         (await act.Should().ThrowAsync<CosmosException>())
             .Where(ex => ex.StatusCode == HttpStatusCode.ServiceUnavailable);
@@ -755,7 +815,9 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TaskLog>([], null);
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TaskLog>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.taskId = @taskId")),
+                It.IsAny<string>(),
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("task-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByTaskAsync("task-1");
@@ -778,7 +840,9 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
 
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TaskLog>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.taskId = @taskId")),
+                It.IsAny<string>(),
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("task-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByTaskAsync("task-1");
@@ -794,7 +858,9 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<TaskLog>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TaskLog>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.taskId = @taskId")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("task-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByTaskPagedAsync("task-1");
@@ -812,7 +878,9 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<TaskLog>([log], "next-log-token");
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<TaskLog>(
-                It.IsAny<QueryDefinition>(), It.IsAny<string>(), It.IsAny<QueryRequestOptions>()))
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.taskId = @taskId")),
+                (string?)null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("task-1"))))
             .Returns(iterator.Object);
 
         var result = await _repo.GetByTaskPagedAsync("task-1");
@@ -830,7 +898,7 @@ public class CosmosTaskLogRepositoryEdgeCaseTests
         log.Message = new string('z', 100_000);
         var response = CosmosMockHelpers.MockItemResponse(log);
         _mockContainer
-            .Setup(c => c.CreateItemAsync(log, It.IsAny<PartitionKey>(),
+            .Setup(c => c.CreateItemAsync(log, new PartitionKey(log.TaskId),
                 It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response.Object);
 
