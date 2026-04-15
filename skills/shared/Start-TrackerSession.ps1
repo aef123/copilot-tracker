@@ -34,7 +34,7 @@ try {
     if ($sessionId) {
         Write-Host "Session tracking active: $sessionId" -ForegroundColor Green
     } else {
-        Write-Warning "Session tracking failed to start. Continuing without tracking."
+        Write-Warning "Session tracking failed to start. If this is an auth issue, run: az login --tenant 5df6d88f-0d78-491b-9617-8b43a209ba73"
     }
 }
 catch {

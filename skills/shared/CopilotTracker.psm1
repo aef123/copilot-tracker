@@ -39,7 +39,7 @@ function Get-TrackerHeaders {
 
     $token = az account get-access-token --resource $script:ResourceId --tenant $script:TenantId --query accessToken -o tsv 2>$null
     if (-not $token) {
-        Write-Warning "Failed to get access token. Run 'az login' first."
+        Write-Warning "Session tracker: could not get a token for tenant $script:TenantId. Run 'az login --tenant $script:TenantId' to fix."
         return $null
     }
     return @{
