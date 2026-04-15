@@ -53,4 +53,20 @@ jobs:
       
       - name: Test dashboard
         if: hashFiles('dashboard/package.json') != ''
-        run: cd dashboard && npm test -- --run
+        run: cd dashboard && npm test
+
+      # PowerShell Pester tests
+      - name: Install Pester
+        if: hashFiles('tests/PowerShell/*.Tests.ps1') != ''
+        shell: pwsh
+        run: Install-Module -Name Pester -Force -Scope CurrentUser -MinimumVersion 5.0
+
+      - name: Run Pester tests
+        if: hashFiles('tests/PowerShell/*.Tests.ps1') != ''
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests/PowerShell'
+          $config.Output.Verbosity = 'Detailed'
+          $config.Run.Exit = $true
+          Invoke-Pester -Configuration $config

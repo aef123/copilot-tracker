@@ -218,13 +218,12 @@ public class ApiPipelineTests : IClassFixture<TrackerWebApplicationFactory>
     }
 
     [Fact]
-    public async Task NonexistentRoute_DoesNotReturnApiError()
+    public async Task NonexistentApiRoute_Returns404_NotSpaHtml()
     {
         var response = await _unauthClient.GetAsync("/api/nonexistent");
 
-        // Nonexistent API routes don't match any controller, so the SPA fallback
-        // kicks in. The result should not be a 500 error.
-        response.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
+        // Bad /api/* routes should return 404, not 200 HTML from the SPA fallback
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -323,33 +322,24 @@ public class ErrorPropagationTests : IClassFixture<FaultyWebApplicationFactory>
     [Fact]
     public async Task Sessions_WhenServiceThrows_Returns500()
     {
-        // No exception-handling middleware is registered, so the TestServer
-        // propagates the repository exception to the test client. In production
-        // Kestrel would return 500; here we verify the exception surfaces.
-        var act = () => _authClient.GetAsync("/api/sessions?machineId=test-machine");
+        var response = await _authClient.GetAsync("/api/sessions?machineId=test-machine");
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*session repo failure*");
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 
     [Fact]
     public async Task Tasks_WhenServiceThrows_Returns500()
     {
-        var act = () => _authClient.GetAsync("/api/tasks?queueName=default");
+        var response = await _authClient.GetAsync("/api/tasks?queueName=default");
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*task repo failure*");
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 
     [Fact]
     public async Task Health_WhenServiceThrows_ReturnsError()
     {
-        // Health is [AllowAnonymous] so auth isn't involved. The HealthService
-        // calls into session/task repos which throw, and without exception
-        // middleware the error propagates.
-        var act = () => _authClient.GetAsync("/api/health");
+        var response = await _authClient.GetAsync("/api/health");
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*repo failure*");
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 }
