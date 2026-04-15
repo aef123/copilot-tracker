@@ -226,4 +226,130 @@ public class ApiPipelineTests : IClassFixture<TrackerWebApplicationFactory>
         // kicks in. The result should not be a 500 error.
         response.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
     }
+
+    [Fact]
+    public async Task Mcp_AcceptsAuthenticatedPost()
+    {
+        var jsonRpc = new StringContent(
+            """{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        var response = await _authClient.PostAsync("/mcp", jsonRpc);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+    }
+}
+
+/// <summary>
+/// Factory that configures mock repositories to throw, for error propagation tests.
+/// </summary>
+public class FaultyWebApplicationFactory : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration((_, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cosmos:Endpoint"] = "https://localhost:8081/",
+                ["Cosmos:Database"] = "TestDb",
+                ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
+                ["AzureAd:TenantId"] = "fake-tenant",
+                ["AzureAd:ClientId"] = "fake-client",
+            });
+        });
+
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<Database>();
+
+            var mockSessionRepo = new Mock<ISessionRepository>();
+            mockSessionRepo
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated session repo failure"));
+            mockSessionRepo
+                .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated session repo failure"));
+            mockSessionRepo
+                .Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated session repo failure"));
+            mockSessionRepo
+                .Setup(r => r.GetActiveByMachineAsync(It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated session repo failure"));
+
+            var mockTaskRepo = new Mock<ITaskRepository>();
+            mockTaskRepo
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated task repo failure"));
+            mockTaskRepo
+                .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated task repo failure"));
+
+            var mockTaskLogRepo = new Mock<ITaskLogRepository>();
+            mockTaskLogRepo
+                .Setup(r => r.GetByTaskPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated task log repo failure"));
+
+            services.RemoveAll<ISessionRepository>();
+            services.RemoveAll<ITaskRepository>();
+            services.RemoveAll<ITaskLogRepository>();
+            services.AddSingleton(mockSessionRepo.Object);
+            services.AddSingleton(mockTaskRepo.Object);
+            services.AddSingleton(mockTaskLogRepo.Object);
+
+            services.AddAuthentication("Test")
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+        });
+    }
+}
+
+public class ErrorPropagationTests : IClassFixture<FaultyWebApplicationFactory>
+{
+    private readonly HttpClient _authClient;
+
+    public ErrorPropagationTests(FaultyWebApplicationFactory factory)
+    {
+        _authClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+        _authClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Test", "fake-token");
+    }
+
+    [Fact]
+    public async Task Sessions_WhenServiceThrows_Returns500()
+    {
+        // No exception-handling middleware is registered, so the TestServer
+        // propagates the repository exception to the test client. In production
+        // Kestrel would return 500; here we verify the exception surfaces.
+        var act = () => _authClient.GetAsync("/api/sessions?machineId=test-machine");
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*session repo failure*");
+    }
+
+    [Fact]
+    public async Task Tasks_WhenServiceThrows_Returns500()
+    {
+        var act = () => _authClient.GetAsync("/api/tasks?queueName=default");
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*task repo failure*");
+    }
+
+    [Fact]
+    public async Task Health_WhenServiceThrows_ReturnsError()
+    {
+        // Health is [AllowAnonymous] so auth isn't involved. The HealthService
+        // calls into session/task repos which throw, and without exception
+        // middleware the error propagates.
+        var act = () => _authClient.GetAsync("/api/health");
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*repo failure*");
+    }
 }

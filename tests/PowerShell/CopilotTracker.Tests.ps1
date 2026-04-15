@@ -1,0 +1,621 @@
+BeforeAll {
+    # Force-import the module so we can test both exported and internal functions
+    $modulePath = "$PSScriptRoot\..\..\skills\shared\CopilotTracker.psm1"
+    Import-Module $modulePath -Force
+}
+
+Describe "CopilotTracker Module" {
+
+    # ── URL Resolution ────────────────────────────────────────────────
+
+    Describe "Initialize-TrackerConnection" {
+
+        BeforeEach {
+            # Reset module state between tests
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = $null
+                $script:SessionId = $null
+            }
+        }
+
+        It "uses explicit BaseUrl parameter when provided" {
+            Initialize-TrackerConnection -BaseUrl "https://custom.example.com"
+            InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://custom.example.com"
+        }
+
+        It "trims trailing slash from BaseUrl" {
+            Initialize-TrackerConnection -BaseUrl "https://custom.example.com/"
+            InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://custom.example.com"
+        }
+
+        It "falls back to COPILOT_TRACKER_URL env var when no parameter" {
+            $originalEnv = $env:COPILOT_TRACKER_URL
+            try {
+                $env:COPILOT_TRACKER_URL = "https://env-url.example.com"
+                Initialize-TrackerConnection
+                InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://env-url.example.com"
+            }
+            finally {
+                $env:COPILOT_TRACKER_URL = $originalEnv
+            }
+        }
+
+        It "falls back to default URL when no parameter and no env var" {
+            $originalEnv = $env:COPILOT_TRACKER_URL
+            try {
+                $env:COPILOT_TRACKER_URL = $null
+                Initialize-TrackerConnection
+                InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://copilot-tracker.azurewebsites.net"
+            }
+            finally {
+                $env:COPILOT_TRACKER_URL = $originalEnv
+            }
+        }
+
+        It "sets MachineId to COMPUTERNAME" {
+            Initialize-TrackerConnection -BaseUrl "https://test.example.com"
+            InModuleScope CopilotTracker { $script:MachineId } | Should -Be $env:COMPUTERNAME
+        }
+    }
+
+    # ── Auth Headers ──────────────────────────────────────────────────
+
+    Describe "Get-TrackerHeaders" {
+
+        It "returns correct Authorization header format" {
+            InModuleScope CopilotTracker {
+                Mock az { return "test-token-abc123" }
+                $headers = Get-TrackerHeaders
+                $headers.Authorization | Should -Be "Bearer test-token-abc123"
+            }
+        }
+
+        It "returns Content-Type header" {
+            InModuleScope CopilotTracker {
+                Mock az { return "test-token" }
+                $headers = Get-TrackerHeaders
+                $headers."Content-Type" | Should -Be "application/json"
+            }
+        }
+
+        It "calls az with correct resource ID" {
+            InModuleScope CopilotTracker {
+                Mock az { return "token" } -Verifiable -ParameterFilter {
+                    # az is called with positional args; verify the resource ID is in there
+                    $args -contains $script:ResourceId
+                }
+                Get-TrackerHeaders | Out-Null
+                Should -InvokeVerifiable
+            }
+        }
+
+        It "returns null when az CLI fails" {
+            InModuleScope CopilotTracker {
+                Mock az { return $null }
+                $result = Get-TrackerHeaders
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It "writes a warning when az CLI fails" {
+            InModuleScope CopilotTracker {
+                Mock az { return $null }
+                $result = Get-TrackerHeaders -WarningVariable warn 3>$null
+                # The function should warn about failed token
+                $warn | Should -Not -BeNullOrEmpty
+            }
+        }
+    }
+
+    # ── MCP Tool Invocation ───────────────────────────────────────────
+
+    Describe "Invoke-McpTool" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+            }
+        }
+
+        It "sends correct JSON-RPC body structure" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    # Validate the body that was sent
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.jsonrpc | Should -Be "2.0"
+                    $parsed.method | Should -Be "tools/call"
+                    $parsed.id | Should -Not -BeNullOrEmpty
+                    $parsed.params.name | Should -Be "test-tool"
+                    $parsed.params.arguments.key1 | Should -Be "value1"
+                    return @{ result = @{ content = @(@{ text = '{"ok":true}' }) } }
+                }
+                Invoke-McpTool -ToolName "test-tool" -Arguments @{ key1 = "value1" }
+            }
+        }
+
+        It "posts to the /mcp endpoint" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    $Uri | Should -Be "https://test-server.example.com/mcp"
+                    return @{ result = @{ content = @(@{ text = '{"ok":true}' }) } }
+                }
+                Invoke-McpTool -ToolName "any-tool" -Arguments @{}
+            }
+        }
+
+        It "returns parsed JSON from response content" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    return @{ result = @{ content = @(@{ text = '{"name":"session-1","status":"active"}' }) } }
+                }
+                $result = Invoke-McpTool -ToolName "get-thing" -Arguments @{}
+                $result.name | Should -Be "session-1"
+                $result.status | Should -Be "active"
+            }
+        }
+
+        It "returns null when response has no content" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod { return @{ result = @{} } }
+                $result = Invoke-McpTool -ToolName "empty-tool" -Arguments @{}
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It "returns null when auth fails" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return $null }
+                $result = Invoke-McpTool -ToolName "some-tool" -Arguments @{}
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It "propagates HTTP errors with ErrorAction Stop" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod { throw "The remote server returned an error: (500) Internal Server Error." }
+                { Invoke-McpTool -ToolName "bad-tool" -Arguments @{} } | Should -Throw "*500*"
+            }
+        }
+
+        It "propagates network failure" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod { throw "Unable to connect to the remote server" }
+                { Invoke-McpTool -ToolName "bad-tool" -Arguments @{} } | Should -Throw "*Unable to connect*"
+            }
+        }
+    }
+
+    # ── REST API Helper ───────────────────────────────────────────────
+
+    Describe "Invoke-TrackerApi" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+            }
+        }
+
+        It "constructs the correct URI from path" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    $Uri | Should -Be "https://test-server.example.com/api/sessions/MACHINE/123"
+                    return @{ id = "123" }
+                }
+                Invoke-TrackerApi -Path "/api/sessions/MACHINE/123"
+            }
+        }
+
+        It "defaults to GET method" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    $Method | Should -Be "GET"
+                    return @{}
+                }
+                Invoke-TrackerApi -Path "/api/test"
+            }
+        }
+
+        It "returns null when auth fails" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return $null }
+                $result = Invoke-TrackerApi -Path "/api/test"
+                $result | Should -BeNullOrEmpty
+            }
+        }
+    }
+
+    # ── Set-TrackerTask ───────────────────────────────────────────────
+
+    Describe "Set-TrackerTask" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+                $script:SessionId = "session-abc"
+                $script:MachineId = "TEST-PC"
+            }
+        }
+
+        It "calls Invoke-McpTool with 'set-task' tool name" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $ToolName | Should -Be "set-task"
+                    return @{ id = "task-001" }
+                }
+                Set-TrackerTask -Title "Build project" -Status "started"
+            }
+        }
+
+        It "includes sessionId in arguments" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.sessionId | Should -Be "session-abc"
+                    return @{ id = "task-001" }
+                }
+                Set-TrackerTask -Title "Build project" -Status "started"
+            }
+        }
+
+        It "includes Title and Status in arguments" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.title | Should -Be "Run tests"
+                    $Arguments.status | Should -Be "done"
+                    return @{ id = "task-002" }
+                }
+                Set-TrackerTask -Title "Run tests" -Status "done"
+            }
+        }
+
+        It "includes optional TaskId when provided" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.taskId | Should -Be "existing-task-99"
+                    return @{ id = "existing-task-99" }
+                }
+                Set-TrackerTask -TaskId "existing-task-99" -Title "Update" -Status "done"
+            }
+        }
+
+        It "includes Result when provided" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.result | Should -Be "All 12 tests passed"
+                    return @{ id = "task-003" }
+                }
+                Set-TrackerTask -Title "Tests" -Status "done" -Result "All 12 tests passed"
+            }
+        }
+
+        It "includes ErrorMessage when provided" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.errorMessage | Should -Be "Compile error in auth.cs"
+                    return @{ id = "task-004" }
+                }
+                Set-TrackerTask -Title "Build" -Status "failed" -ErrorMessage "Compile error in auth.cs"
+            }
+        }
+
+        It "returns the task ID from response" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool { return @{ id = "task-xyz" } }
+                $id = Set-TrackerTask -Title "Work" -Status "started"
+                $id | Should -Be "task-xyz"
+            }
+        }
+
+        It "warns and returns nothing when no active session" {
+            InModuleScope CopilotTracker {
+                $script:SessionId = $null
+                $result = Set-TrackerTask -Title "No session" -Status "started" -WarningVariable warn 3>$null
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It "defaults Source to 'prompt'" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.source | Should -Be "prompt"
+                    return @{ id = "task-005" }
+                }
+                Set-TrackerTask -Title "Default source" -Status "started"
+            }
+        }
+
+        It "defaults QueueName to 'default'" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.queueName | Should -Be "default"
+                    return @{ id = "task-006" }
+                }
+                Set-TrackerTask -Title "Default queue" -Status "started"
+            }
+        }
+    }
+
+    # ── Add-TrackerLog ────────────────────────────────────────────────
+
+    Describe "Add-TrackerLog" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+            }
+        }
+
+        It "calls Invoke-McpTool with 'add-log' and correct arguments" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $ToolName | Should -Be "add-log"
+                    $Arguments.taskId | Should -Be "task-abc"
+                    $Arguments.logType | Should -Be "progress"
+                    $Arguments.message | Should -Be "Step 2 complete"
+                }
+                Add-TrackerLog -TaskId "task-abc" -LogType "progress" -Message "Step 2 complete"
+            }
+        }
+
+        It "does nothing when BaseUrl is not set" {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = $null
+                Mock Invoke-McpTool { throw "Should not be called" }
+                # Should not throw
+                Add-TrackerLog -TaskId "task-abc" -LogType "error" -Message "fail"
+            }
+        }
+    }
+
+    # ── Start-TrackerSession ──────────────────────────────────────────
+
+    Describe "Start-TrackerSession" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+                $script:SessionId = $null
+                $script:MachineId = "TEST-PC"
+            }
+        }
+
+        It "calls initialize-session via Invoke-McpTool" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $ToolName | Should -Be "initialize-session"
+                    return @{ id = "new-session-1" }
+                }
+                Mock Start-HeartbeatJob {}
+                Start-TrackerSession
+            }
+        }
+
+        It "stores session ID in module state" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool { return @{ id = "new-session-2" } }
+                Mock Start-HeartbeatJob {}
+                Start-TrackerSession
+                $script:SessionId | Should -Be "new-session-2"
+            }
+        }
+
+        It "returns the session ID" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool { return @{ id = "new-session-3" } }
+                Mock Start-HeartbeatJob {}
+                $result = Start-TrackerSession
+                $result | Should -Be "new-session-3"
+            }
+        }
+
+        It "includes repo and branch in arguments when provided" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool {
+                    $Arguments.repository | Should -Be "my/repo"
+                    $Arguments.branch | Should -Be "feature-x"
+                    return @{ id = "s1" }
+                }
+                Mock Start-HeartbeatJob {}
+                Start-TrackerSession -Repo "my/repo" -Branch "feature-x"
+            }
+        }
+
+        It "starts heartbeat job on success" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-McpTool { return @{ id = "s1" } }
+                Mock Start-HeartbeatJob {} -Verifiable
+                Start-TrackerSession
+                Should -InvokeVerifiable
+            }
+        }
+
+        It "initializes connection if BaseUrl is not set" {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = $null
+                Mock Initialize-TrackerConnection {} -Verifiable
+                Mock Invoke-McpTool { return @{ id = "s1" } }
+                Mock Start-HeartbeatJob {}
+                Start-TrackerSession
+                Should -InvokeVerifiable
+            }
+        }
+    }
+
+    # ── Complete-TrackerSession ───────────────────────────────────────
+
+    Describe "Complete-TrackerSession" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+                $script:SessionId = "active-session"
+                $script:MachineId = "TEST-PC"
+            }
+        }
+
+        It "calls complete-session MCP tool" {
+            InModuleScope CopilotTracker {
+                Mock Stop-HeartbeatJob {}
+                Mock Invoke-McpTool {
+                    $ToolName | Should -Be "complete-session"
+                    $Arguments.sessionId | Should -Be "active-session"
+                }
+                Complete-TrackerSession
+            }
+        }
+
+        It "includes summary when provided" {
+            InModuleScope CopilotTracker {
+                Mock Stop-HeartbeatJob {}
+                Mock Invoke-McpTool {
+                    $Arguments.summary | Should -Be "All done"
+                }
+                Complete-TrackerSession -Summary "All done"
+            }
+        }
+
+        It "clears SessionId after completion" {
+            InModuleScope CopilotTracker {
+                Mock Stop-HeartbeatJob {}
+                Mock Invoke-McpTool {}
+                Complete-TrackerSession
+                $script:SessionId | Should -BeNullOrEmpty
+            }
+        }
+
+        It "stops heartbeat job" {
+            InModuleScope CopilotTracker {
+                Mock Stop-HeartbeatJob {} -Verifiable
+                Mock Invoke-McpTool {}
+                Complete-TrackerSession
+                Should -InvokeVerifiable
+            }
+        }
+
+        It "does nothing when no active session" {
+            InModuleScope CopilotTracker {
+                $script:SessionId = $null
+                Mock Stop-HeartbeatJob { throw "Should not be called" }
+                Mock Invoke-McpTool { throw "Should not be called" }
+                Complete-TrackerSession
+            }
+        }
+    }
+
+    # ── Get-TrackerSession ────────────────────────────────────────────
+
+    Describe "Get-TrackerSession" {
+
+        BeforeEach {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+                $script:SessionId = "current-session"
+                $script:MachineId = "TEST-PC"
+            }
+        }
+
+        It "calls the REST API with correct path" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/sessions/TEST-PC/current-session"
+                    return @{ id = "current-session" }
+                }
+                Get-TrackerSession
+            }
+        }
+
+        It "uses explicit SessionId and MachineId parameters" {
+            InModuleScope CopilotTracker {
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/sessions/OTHER-PC/other-session"
+                    return @{ id = "other-session" }
+                }
+                Get-TrackerSession -SessionId "other-session" -MachineId "OTHER-PC"
+            }
+        }
+
+        It "initializes connection if BaseUrl is not set" {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = $null
+                Mock Initialize-TrackerConnection {} -Verifiable
+                Mock Invoke-TrackerApi { return @{ id = "s1" } }
+                Get-TrackerSession
+                Should -InvokeVerifiable
+            }
+        }
+    }
+
+    # ── Send-TrackerHeartbeat ─────────────────────────────────────────
+
+    Describe "Send-TrackerHeartbeat" {
+
+        It "calls heartbeat MCP tool with session and machine IDs" {
+            InModuleScope CopilotTracker {
+                $script:BaseUrl = "https://test-server.example.com"
+                $script:SessionId = "hb-session"
+                $script:MachineId = "HB-PC"
+                Mock Invoke-McpTool {
+                    $ToolName | Should -Be "heartbeat"
+                    $Arguments.sessionId | Should -Be "hb-session"
+                    $Arguments.machineId | Should -Be "HB-PC"
+                }
+                Send-TrackerHeartbeat
+            }
+        }
+
+        It "does nothing when no session is active" {
+            InModuleScope CopilotTracker {
+                $script:SessionId = $null
+                $script:BaseUrl = "https://test-server.example.com"
+                Mock Invoke-McpTool { throw "Should not be called" }
+                Send-TrackerHeartbeat
+            }
+        }
+
+        It "does nothing when BaseUrl is not set" {
+            InModuleScope CopilotTracker {
+                $script:SessionId = "some-session"
+                $script:BaseUrl = $null
+                Mock Invoke-McpTool { throw "Should not be called" }
+                Send-TrackerHeartbeat
+            }
+        }
+    }
+
+    # ── Module Exports ────────────────────────────────────────────────
+
+    Describe "Module Exports" {
+
+        It "exports expected functions" {
+            $exported = (Get-Module CopilotTracker).ExportedFunctions.Keys
+            $expected = @(
+                'Initialize-TrackerConnection',
+                'Start-TrackerSession',
+                'Send-TrackerHeartbeat',
+                'Complete-TrackerSession',
+                'Get-TrackerSession',
+                'Set-TrackerTask',
+                'Add-TrackerLog'
+            )
+            foreach ($fn in $expected) {
+                $exported | Should -Contain $fn
+            }
+        }
+
+        It "does not export internal helpers" {
+            $exported = (Get-Module CopilotTracker).ExportedFunctions.Keys
+            $exported | Should -Not -Contain "Get-TrackerHeaders"
+            $exported | Should -Not -Contain "Invoke-McpTool"
+            $exported | Should -Not -Contain "Invoke-TrackerApi"
+            $exported | Should -Not -Contain "Start-HeartbeatJob"
+            $exported | Should -Not -Contain "Stop-HeartbeatJob"
+        }
+    }
+}
