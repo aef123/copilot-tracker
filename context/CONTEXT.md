@@ -14,31 +14,42 @@ A system to track Copilot CLI sessions and tasks across multiple machines. Azure
 
 ## Current State
 
-**Nothing is built yet.** This is a fresh repo with only README.md and these docs/context files. The architecture is planned and documented in `docs/planning/`.
+**Core implementation complete.** All backend and frontend code is built and tested. Not yet deployed to Azure.
 
-### What Exists (from the original version in ai-marketplace)
+### What's Built
 
-The original `ai-marketplace/plugins/copilot-session-tracker` has:
-- PowerShell module that talks directly to Cosmos DB via REST
-- React dashboard that talks directly to Cosmos DB from the browser
-- Bootstrap and initialize-machine skills for Azure provisioning
-- Working Cosmos DB backend (serverless, RBAC-only, already provisioned)
+- **.NET 10 solution** with 3 projects (Server, Core, Cosmos) + 3 test projects
+- **MCP server** at `/mcp` with 6 tools: initialize-session, heartbeat, complete-session, set-task, add-log, get-session
+- **REST API** at `/api/*` with controllers for sessions, tasks, health
+- **Service layer**: SessionService, TaskService, TaskLogService, HealthService (30s cache)
+- **Cosmos repositories**: partition-key-aware, behind interfaces (ISessionRepository, ITaskRepository, ITaskLogRepository)
+- **Entra auth**: Microsoft.Identity.Web bearer token validation
+- **Stale session cleanup**: BackgroundService on configurable timer
+- **React dashboard**: Vite + TypeScript + MSAL.js auth + typed API client + 5 components (HealthDashboard, SessionList, SessionDetail, TaskDetail, Layout)
+- **PowerShell module**: CopilotTracker.psm1 talks to MCP server (not Cosmos directly)
+- **CI/CD**: GitHub Actions workflows (ci.yml for PRs, cd.yml for deploy on merge)
+- **Bicep IaC**: App Service, Cosmos DB (serverless, RBAC-only), UAMI, role assignments
+- **Setup scripts**: setup-deployment.ps1, setup-app-registration.ps1
 
-### What We're Building
+### Test Coverage
 
-A new architecture with a proper backend server sitting between all clients and the database:
-- .NET 10 ASP.NET Core server hosting MCP + REST API + SPA
-- Shared service + repository layer with Cosmos DB behind interfaces
-- UAMI for server-to-Cosmos auth, Entra user tokens at the edge
-- GitHub Actions CI/CD (OIDC, no secrets)
-- See `docs/planning/00-architecture.md` for the full design
+- 36 .NET tests (16 core service, 7 cosmos, 13 server)
+- 22 dashboard tests (4 auth, 12 API client, 6 component)
+- 58 total, all passing
 
-## Azure Resources (Already Provisioned)
+## Azure Resources
 
-See `context/azure-resources.md` for details. The Cosmos DB backend from the original version is still active and will be reused.
+See `context/azure-resources.md` for details.
+
+- Resource group, deployment SP, OIDC credentials: provisioned
+- App registration for API: provisioned (4c8148f5-c913-40c5-863f-1c019821eac4)
+- Cosmos DB, App Service, UAMI: defined in Bicep, not yet deployed
 
 ## What's Next
 
-Phase 0 (documentation scaffolding) is complete. Next is Phase 1: Foundation (auth spike + core scaffolding). The MCP auth spike is the riskiest path and should be validated first.
+1. Deploy infrastructure via Bicep (`deploy/deploy.ps1`)
+2. Push to main to trigger CD pipeline
+3. Verify end-to-end: CLI -> MCP -> Cosmos, Dashboard -> API -> Cosmos
+4. Post-deploy smoke tests
 
 See `docs/planning/phase-status.md` for detailed progress.

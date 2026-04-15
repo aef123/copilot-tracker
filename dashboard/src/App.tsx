@@ -1,26 +1,41 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useAuth } from "./auth/useAuth";
+import { Layout } from "./components/Layout";
+import { HealthDashboard } from "./components/HealthDashboard";
+import { SessionList } from "./components/SessionList";
+import { SessionDetail } from "./components/SessionDetail";
+import { TaskDetail } from "./components/TaskDetail";
+import "./components/styles.css";
 
 function App() {
-  const { login, logout, user } = useAuth();
+  const { login } = useAuth();
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui" }}>
-      <h1>Copilot Session Tracker</h1>
-
+    <>
       <UnauthenticatedTemplate>
-        <p>Sign in to view your sessions.</p>
-        <button onClick={login}>Sign In</button>
+        <div className="login-page">
+          <h1>Copilot Session Tracker</h1>
+          <p>Sign in to view your sessions.</p>
+          <button className="btn-primary" onClick={login}>
+            Sign In
+          </button>
+        </div>
       </UnauthenticatedTemplate>
 
       <AuthenticatedTemplate>
-        <p>Welcome, {user?.name}!</p>
-        <p style={{ color: "#666", fontSize: "0.875rem" }}>{user?.email}</p>
-        <button onClick={logout}>Sign Out</button>
-        <hr />
-        <p>Dashboard components coming soon...</p>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<HealthDashboard />} />
+              <Route path="/sessions" element={<SessionList />} />
+              <Route path="/sessions/:machineId/:id" element={<SessionDetail />} />
+              <Route path="/tasks/:queueName/:id" element={<TaskDetail />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
       </AuthenticatedTemplate>
-    </div>
+    </>
   );
 }
 
