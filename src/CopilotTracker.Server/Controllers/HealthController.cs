@@ -19,7 +19,20 @@ public class HealthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Get()
     {
-        var health = await _healthService.GetHealthAsync();
-        return Ok(health);
+        try
+        {
+            var health = await _healthService.GetHealthAsync();
+            return Ok(health);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                status = "unhealthy",
+                error = ex.GetType().Name,
+                message = ex.Message,
+                inner = ex.InnerException?.Message
+            });
+        }
     }
 }
