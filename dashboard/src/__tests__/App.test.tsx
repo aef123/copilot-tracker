@@ -12,7 +12,7 @@ vi.mock("@azure/msal-react", () => ({
   UnauthenticatedTemplate: ({ children }: { children: React.ReactNode }) =>
     isAuthenticated ? null : <>{children}</>,
   useMsal: () => ({
-    instance: { loginPopup: mockLogin, logoutPopup: vi.fn() },
+    instance: { loginRedirect: mockLogin, logoutRedirect: vi.fn() },
     accounts: isAuthenticated
       ? [{ name: "Test User", username: "test@example.com", localAccountId: "u1" }]
       : [],

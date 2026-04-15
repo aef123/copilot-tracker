@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockInitialize, mockGetAllAccounts, mockSetActiveAccount, mockAddEventCallback } =
+const { mockInitialize, mockGetAllAccounts, mockSetActiveAccount, mockAddEventCallback, mockHandleRedirectPromise } =
   vi.hoisted(() => ({
     mockInitialize: vi.fn(),
     mockGetAllAccounts: vi.fn(),
     mockSetActiveAccount: vi.fn(),
     mockAddEventCallback: vi.fn(),
+    mockHandleRedirectPromise: vi.fn(),
   }));
 
 vi.mock("@azure/msal-browser", () => {
@@ -16,6 +17,7 @@ vi.mock("@azure/msal-browser", () => {
       getAllAccounts: mockGetAllAccounts,
       setActiveAccount: mockSetActiveAccount,
       addEventCallback: mockAddEventCallback,
+      handleRedirectPromise: mockHandleRedirectPromise,
     };
   }
   return {
@@ -46,6 +48,7 @@ describe("AuthProvider", () => {
     vi.clearAllMocks();
     mockGetAllAccounts.mockReturnValue([]);
     mockInitialize.mockResolvedValue(undefined);
+    mockHandleRedirectPromise.mockResolvedValue(null);
   });
 
   it("shows Loading while MSAL initializes", () => {

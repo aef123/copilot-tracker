@@ -13,8 +13,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    msalInstance.initialize().then(() => {
-      // Set the first account as active if one exists
+    msalInstance.initialize().then(async () => {
+      // Handle redirect response before checking accounts
+      await msalInstance.handleRedirectPromise();
+
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) {
         msalInstance.setActiveAccount(accounts[0]);

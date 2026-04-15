@@ -3,10 +3,10 @@ import { renderHook, act } from "@testing-library/react";
 
 // Mock MSAL hooks
 const mockInstance = {
-  loginPopup: vi.fn(),
-  logoutPopup: vi.fn(),
+  loginRedirect: vi.fn(),
+  logoutRedirect: vi.fn(),
   acquireTokenSilent: vi.fn(),
-  acquireTokenPopup: vi.fn(),
+  acquireTokenRedirect: vi.fn(),
 };
 const mockAccounts: any[] = [];
 
@@ -72,9 +72,9 @@ describe("useAuth", () => {
   });
 
   describe("login", () => {
-    it("calls loginPopup with loginRequest", async () => {
+    it("calls loginRedirect with loginRequest", async () => {
       vi.mocked(useIsAuthenticated).mockReturnValue(false);
-      mockInstance.loginPopup.mockResolvedValue(undefined);
+      mockInstance.loginRedirect.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useAuth());
 
@@ -82,13 +82,13 @@ describe("useAuth", () => {
         await result.current.login();
       });
 
-      expect(mockInstance.loginPopup).toHaveBeenCalledWith({ scopes: ["api://test/scope"] });
+      expect(mockInstance.loginRedirect).toHaveBeenCalledWith({ scopes: ["api://test/scope"] });
     });
 
     it("handles login failure gracefully", async () => {
       vi.mocked(useIsAuthenticated).mockReturnValue(false);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      mockInstance.loginPopup.mockRejectedValue(new Error("user cancelled"));
+      mockInstance.loginRedirect.mockRejectedValue(new Error("user cancelled"));
 
       const { result } = renderHook(() => useAuth());
 
@@ -102,14 +102,14 @@ describe("useAuth", () => {
   });
 
   describe("logout", () => {
-    it("calls logoutPopup", () => {
+    it("calls logoutRedirect", () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
 
       const { result } = renderHook(() => useAuth());
       result.current.logout();
 
-      expect(mockInstance.logoutPopup).toHaveBeenCalled();
+      expect(mockInstance.logoutRedirect).toHaveBeenCalled();
     });
   });
 
@@ -134,24 +134,24 @@ describe("useAuth", () => {
       expect(token).toBe("silent-token");
     });
 
-    it("falls back to popup when silent fails", async () => {
+    it("falls back to redirect when silent fails", async () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
       mockInstance.acquireTokenSilent.mockRejectedValue(new Error("interaction required"));
-      mockInstance.acquireTokenPopup.mockResolvedValue({ accessToken: "popup-token" });
+      mockInstance.acquireTokenRedirect.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useAuth());
       const token = await result.current.getAccessToken();
 
-      expect(token).toBe("popup-token");
+      expect(token).toBeNull();
     });
 
-    it("returns null when both silent and popup fail", async () => {
+    it("returns null when both silent and redirect fail", async () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       mockInstance.acquireTokenSilent.mockRejectedValue(new Error("fail1"));
-      mockInstance.acquireTokenPopup.mockRejectedValue(new Error("fail2"));
+      mockInstance.acquireTokenRedirect.mockRejectedValue(new Error("fail2"));
 
       const { result } = renderHook(() => useAuth());
       const token = await result.current.getAccessToken();
@@ -161,41 +161,41 @@ describe("useAuth", () => {
       consoleSpy.mockRestore();
     });
 
-    it("falls back to popup on interaction_required error", async () => {
+    it("falls back to redirect on interaction_required error", async () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
       const interactionError = new Error("interaction_required");
       interactionError.name = "InteractionRequiredAuthError";
       mockInstance.acquireTokenSilent.mockRejectedValue(interactionError);
-      mockInstance.acquireTokenPopup.mockResolvedValue({ accessToken: "interactive-token" });
+      mockInstance.acquireTokenRedirect.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useAuth());
       const token = await result.current.getAccessToken();
 
-      expect(token).toBe("interactive-token");
-      expect(mockInstance.acquireTokenPopup).toHaveBeenCalledWith({ scopes: ["api://test/scope"] });
+      expect(token).toBeNull();
+      expect(mockInstance.acquireTokenRedirect).toHaveBeenCalledWith({ scopes: ["api://test/scope"] });
     });
 
     it("handles network failure during silent token acquisition", async () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
       mockInstance.acquireTokenSilent.mockRejectedValue(new TypeError("Failed to fetch"));
-      mockInstance.acquireTokenPopup.mockResolvedValue({ accessToken: "fallback-token" });
+      mockInstance.acquireTokenRedirect.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useAuth());
       const token = await result.current.getAccessToken();
 
-      expect(token).toBe("fallback-token");
+      expect(token).toBeNull();
     });
 
-    it("returns null when popup is cancelled by user", async () => {
+    it("returns null when redirect is cancelled by user", async () => {
       mockAccounts.push({ name: "User", username: "u@t.com", localAccountId: "1" });
       vi.mocked(useIsAuthenticated).mockReturnValue(true);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       mockInstance.acquireTokenSilent.mockRejectedValue(new Error("silent failed"));
       const cancelError = new Error("user_cancelled");
       cancelError.name = "BrowserAuthError";
-      mockInstance.acquireTokenPopup.mockRejectedValue(cancelError);
+      mockInstance.acquireTokenRedirect.mockRejectedValue(cancelError);
 
       const { result } = renderHook(() => useAuth());
       const token = await result.current.getAccessToken();
@@ -236,12 +236,12 @@ describe("useAuth", () => {
   });
 
   describe("login edge cases", () => {
-    it("handles user cancelling login popup", async () => {
+    it("handles user cancelling login redirect", async () => {
       vi.mocked(useIsAuthenticated).mockReturnValue(false);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const cancelError = new Error("user_cancelled: User closed the popup");
       cancelError.name = "BrowserAuthError";
-      mockInstance.loginPopup.mockRejectedValue(cancelError);
+      mockInstance.loginRedirect.mockRejectedValue(cancelError);
 
       const { result } = renderHook(() => useAuth());
       await act(async () => {
@@ -255,7 +255,7 @@ describe("useAuth", () => {
     it("handles multiple rapid login attempts without throwing", async () => {
       vi.mocked(useIsAuthenticated).mockReturnValue(false);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      mockInstance.loginPopup
+      mockInstance.loginRedirect
         .mockRejectedValueOnce(new Error("interaction_in_progress"))
         .mockResolvedValueOnce(undefined);
 
@@ -267,14 +267,14 @@ describe("useAuth", () => {
 
       // Second attempt succeeds
       await act(async () => { await result.current.login(); });
-      expect(mockInstance.loginPopup).toHaveBeenCalledTimes(2);
+      expect(mockInstance.loginRedirect).toHaveBeenCalledTimes(2);
       consoleSpy.mockRestore();
     });
 
     it("handles network failure during login", async () => {
       vi.mocked(useIsAuthenticated).mockReturnValue(false);
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      mockInstance.loginPopup.mockRejectedValue(new TypeError("Failed to fetch"));
+      mockInstance.loginRedirect.mockRejectedValue(new TypeError("Failed to fetch"));
 
       const { result } = renderHook(() => useAuth());
       await act(async () => {
@@ -293,7 +293,7 @@ describe("useAuth", () => {
       const { result } = renderHook(() => useAuth());
       result.current.logout();
 
-      expect(mockInstance.logoutPopup).toHaveBeenCalled();
+      expect(mockInstance.logoutRedirect).toHaveBeenCalled();
     });
   });
 

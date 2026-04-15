@@ -7,14 +7,14 @@ export function useAuth() {
 
   const login = async () => {
     try {
-      await instance.loginPopup(loginRequest);
+      await instance.loginRedirect(loginRequest);
     } catch (error) {
       console.error("Login failed:", error);
     }
   };
 
   const logout = () => {
-    instance.logoutPopup();
+    instance.logoutRedirect();
   };
 
   const getAccessToken = async (): Promise<string | null> => {
@@ -27,12 +27,12 @@ export function useAuth() {
       });
       return response.accessToken;
     } catch (error) {
-      // If silent fails, try popup
+      // If silent fails, fall back to redirect
       try {
-        const response = await instance.acquireTokenPopup(loginRequest);
-        return response.accessToken;
-      } catch (popupError) {
-        console.error("Token acquisition failed:", popupError);
+        await instance.acquireTokenRedirect(loginRequest);
+        return null; // Page will redirect, so this won't resolve
+      } catch (redirectError) {
+        console.error("Token acquisition failed:", redirectError);
         return null;
       }
     }
