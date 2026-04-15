@@ -94,16 +94,16 @@ public class HealthControllerTests
     }
 
     [Fact]
-    public async Task Get_ServiceThrows_ExceptionPropagates()
+    public async Task Get_ServiceThrows_Returns500WithErrorDetails()
     {
         _healthService
             .Setup(s => s.GetHealthAsync())
             .ThrowsAsync(new InvalidOperationException("Cosmos unavailable"));
 
-        Func<Task> act = () => _controller.Get();
+        var result = await _controller.Get();
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Cosmos unavailable");
+        var statusResult = result.Should().BeOfType<ObjectResult>().Subject;
+        statusResult.StatusCode.Should().Be(500);
     }
 
     [Fact]
