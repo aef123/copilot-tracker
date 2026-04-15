@@ -21,32 +21,32 @@ This skill configures the current machine for Copilot Session Tracker. It instal
 
 ### 0a. Server URL
 
-Ask the user: **"What is the tracker server URL? (Default: `https://copilot-tracker.azurewebsites.net`)"**
+Ask the user: **"What is the tracker server URL?"**
 
-Wait for the user to respond. Store as `$serverUrl`.
+This is required. There is no default. Store as `$serverUrl`.
 
 ```powershell
-$serverUrl = "<user-provided-or-default>"
+$serverUrl = "<user-provided>"
 ```
 
 ### 0b. Entra Tenant ID
 
-Ask the user: **"What is the Entra tenant ID for authentication? (Default: `5df6d88f-0d78-491b-9617-8b43a209ba73`)"**
+Ask the user: **"What is the Entra tenant ID for authentication?"**
 
-Wait for the user to respond. Store as `$tenantId`.
+This is required. There is no default. Store as `$tenantId`.
 
 ```powershell
-$tenantId = "<user-provided-or-default>"
+$tenantId = "<user-provided>"
 ```
 
 ### 0c. App Registration Resource ID
 
-Ask the user: **"What is the Entra app registration resource ID (Application ID URI)? (Default: `api://4c8148f5-c913-40c5-863f-1c019821eac4`)"**
+Ask the user: **"What is the Entra app registration resource ID (Application ID URI)? This looks like `api://<client-id>`."**
 
-Wait for the user to respond. Store as `$resourceId`.
+This is required. There is no default. Store as `$resourceId`.
 
 ```powershell
-$resourceId = "<user-provided-or-default>"
+$resourceId = "<user-provided>"
 ```
 
 ### Confirmation Gate
@@ -153,50 +153,20 @@ Copy-Item -Path (Join-Path $sharedDir "Start-TrackerSession.ps1") -Destination $
 Write-Output "✅ Module installed to $trackerDir"
 ```
 
-## Step 3: Configure Environment Variables
+## Step 3: Write Config File
 
-Set or clear environment variables based on whether the user chose non-default values.
+Write the tracker config JSON. The PowerShell module reads this on every session startup.
 
 ```powershell
-# Server URL
-if ($serverUrl -ne "https://copilot-tracker.azurewebsites.net") {
-    [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_URL", $serverUrl, "User")
-    $env:COPILOT_TRACKER_URL = $serverUrl
-    Write-Output "✅ Set COPILOT_TRACKER_URL = $serverUrl"
-} else {
-    # Clear any previously set custom value
-    if ([System.Environment]::GetEnvironmentVariable("COPILOT_TRACKER_URL", "User")) {
-        [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_URL", $null, "User")
-        $env:COPILOT_TRACKER_URL = $null
-        Write-Output "✅ Cleared COPILOT_TRACKER_URL (using default)"
-    }
-}
+$config = @{
+    serverUrl  = $serverUrl
+    tenantId   = $tenantId
+    resourceId = $resourceId
+} | ConvertTo-Json
 
-# Tenant ID
-if ($tenantId -ne "5df6d88f-0d78-491b-9617-8b43a209ba73") {
-    [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_TENANT_ID", $tenantId, "User")
-    $env:COPILOT_TRACKER_TENANT_ID = $tenantId
-    Write-Output "✅ Set COPILOT_TRACKER_TENANT_ID = $tenantId"
-} else {
-    if ([System.Environment]::GetEnvironmentVariable("COPILOT_TRACKER_TENANT_ID", "User")) {
-        [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_TENANT_ID", $null, "User")
-        $env:COPILOT_TRACKER_TENANT_ID = $null
-        Write-Output "✅ Cleared COPILOT_TRACKER_TENANT_ID (using default)"
-    }
-}
-
-# Resource ID
-if ($resourceId -ne "api://4c8148f5-c913-40c5-863f-1c019821eac4") {
-    [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", $resourceId, "User")
-    $env:COPILOT_TRACKER_RESOURCE_ID = $resourceId
-    Write-Output "✅ Set COPILOT_TRACKER_RESOURCE_ID = $resourceId"
-} else {
-    if ([System.Environment]::GetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", "User")) {
-        [System.Environment]::SetEnvironmentVariable("COPILOT_TRACKER_RESOURCE_ID", $null, "User")
-        $env:COPILOT_TRACKER_RESOURCE_ID = $null
-        Write-Output "✅ Cleared COPILOT_TRACKER_RESOURCE_ID (using default)"
-    }
-}
+$configPath = Join-Path $env:USERPROFILE ".copilot\copilot-tracker-config.json"
+$config | Set-Content -Path $configPath -Encoding UTF8
+Write-Output "✅ Config written: $configPath"
 ```
 
 ## Step 4: Update copilot-instructions.md

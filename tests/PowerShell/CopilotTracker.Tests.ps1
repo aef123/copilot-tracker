@@ -15,44 +15,44 @@ Describe "CopilotTracker Module" {
             InModuleScope CopilotTracker {
                 $script:BaseUrl = $null
                 $script:SessionId = $null
+                $script:ConfigLoaded = $false
+                $script:ResourceId = "test-resource-id"
+                $script:TenantId = "test-tenant-id"
             }
         }
 
         It "uses explicit BaseUrl parameter when provided" {
+            InModuleScope CopilotTracker { $script:ConfigLoaded = $true }
             Initialize-TrackerConnection -BaseUrl "https://custom.example.com"
             InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://custom.example.com"
         }
 
         It "trims trailing slash from BaseUrl" {
+            InModuleScope CopilotTracker { $script:ConfigLoaded = $true }
             Initialize-TrackerConnection -BaseUrl "https://custom.example.com/"
             InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://custom.example.com"
         }
 
-        It "falls back to COPILOT_TRACKER_URL env var when no parameter" {
-            $originalEnv = $env:COPILOT_TRACKER_URL
-            try {
-                $env:COPILOT_TRACKER_URL = "https://env-url.example.com"
-                Initialize-TrackerConnection
-                InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://env-url.example.com"
+        It "reads serverUrl from config file" {
+            InModuleScope CopilotTracker {
+                $script:ConfigLoaded = $true
+                $script:BaseUrl = "https://from-config.example.com"
             }
-            finally {
-                $env:COPILOT_TRACKER_URL = $originalEnv
-            }
+            Initialize-TrackerConnection
+            InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://from-config.example.com"
         }
 
-        It "falls back to default URL when no parameter and no env var" {
-            $originalEnv = $env:COPILOT_TRACKER_URL
-            try {
-                $env:COPILOT_TRACKER_URL = $null
-                Initialize-TrackerConnection
-                InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://copilot-tracker.azurewebsites.net"
+        It "explicit BaseUrl overrides config file" {
+            InModuleScope CopilotTracker {
+                $script:ConfigLoaded = $true
+                $script:BaseUrl = "https://from-config.example.com"
             }
-            finally {
-                $env:COPILOT_TRACKER_URL = $originalEnv
-            }
+            Initialize-TrackerConnection -BaseUrl "https://override.example.com"
+            InModuleScope CopilotTracker { $script:BaseUrl } | Should -Be "https://override.example.com"
         }
 
         It "sets MachineId to COMPUTERNAME" {
+            InModuleScope CopilotTracker { $script:ConfigLoaded = $true }
             Initialize-TrackerConnection -BaseUrl "https://test.example.com"
             InModuleScope CopilotTracker { $script:MachineId } | Should -Be $env:COMPUTERNAME
         }

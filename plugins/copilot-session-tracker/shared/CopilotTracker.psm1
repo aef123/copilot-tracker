@@ -3,13 +3,38 @@
 # Writes go through the MCP endpoint (/mcp) using JSON-RPC tool calls.
 # Reads use the REST API (/api/*) when available.
 # The server handles all Cosmos DB access internally.
+#
+# Configuration is read from ~/.copilot/copilot-tracker-config.json.
+# Run the 'initialize-machine' skill to create it.
 
 $script:BaseUrl = $null
 $script:SessionId = $null
 $script:MachineId = $null
 $script:HeartbeatJob = $null
-$script:ResourceId = if ($env:COPILOT_TRACKER_RESOURCE_ID) { $env:COPILOT_TRACKER_RESOURCE_ID } else { "api://4c8148f5-c913-40c5-863f-1c019821eac4" }
-$script:TenantId = if ($env:COPILOT_TRACKER_TENANT_ID) { $env:COPILOT_TRACKER_TENANT_ID } else { "5df6d88f-0d78-491b-9617-8b43a209ba73" }
+$script:ResourceId = $null
+$script:TenantId = $null
+$script:ConfigLoaded = $false
+
+function Load-TrackerConfig {
+    if ($script:ConfigLoaded) { return }
+
+    $configPath = Join-Path $env:USERPROFILE ".copilot\copilot-tracker-config.json"
+    if (Test-Path $configPath) {
+        try {
+            $config = Get-Content $configPath -Raw | ConvertFrom-Json
+            $script:ResourceId = $config.resourceId
+            $script:TenantId = $config.tenantId
+            if ($config.serverUrl -and -not $script:BaseUrl) {
+                $script:BaseUrl = $config.serverUrl.TrimEnd('/')
+            }
+            $script:ConfigLoaded = $true
+        } catch {
+            Write-Warning "Session tracker: failed to read config from $configPath. Run 'initialize-machine' skill to fix."
+        }
+    } else {
+        Write-Warning "Session tracker: no config found at $configPath. Run the 'initialize-machine' skill to set up."
+    }
+}
 
 # ── Connection ────────────────────────────────────────────────────────
 
@@ -20,15 +45,21 @@ function Initialize-TrackerConnection {
         [string]$BaseUrl
     )
 
-    # Priority: explicit parameter > env var > default
-    if (-not $BaseUrl) {
-        $BaseUrl = $env:COPILOT_TRACKER_URL
-    }
-    if (-not $BaseUrl) {
-        $BaseUrl = "https://copilot-tracker.azurewebsites.net"
+    Load-TrackerConfig
+
+    if ($BaseUrl) {
+        $script:BaseUrl = $BaseUrl.TrimEnd('/')
     }
 
-    $script:BaseUrl = $BaseUrl.TrimEnd('/')
+    if (-not $script:BaseUrl) {
+        Write-Warning "Session tracker: no server URL configured. Run the 'initialize-machine' skill."
+        return
+    }
+    if (-not $script:ResourceId -or -not $script:TenantId) {
+        Write-Warning "Session tracker: missing resourceId or tenantId in config. Run the 'initialize-machine' skill."
+        return
+    }
+
     $script:MachineId = $env:COMPUTERNAME
     Write-Verbose "Tracker connected to $script:BaseUrl"
 }

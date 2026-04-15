@@ -27,10 +27,10 @@ Copilot CLI  →  PowerShell module  →  .NET Server  →  Cosmos DB
 
 ### 2. One-time Azure login
 
-Log into the tracker's Entra tenant (this is cached and survives switching Azure subscriptions):
+Log into the Entra tenant where your tracker is registered:
 
 ```powershell
-az login --tenant 5df6d88f-0d78-491b-9617-8b43a209ba73
+az login --tenant <your-tenant-id>
 ```
 
 ### 3. Initialize your machine
@@ -51,18 +51,17 @@ After initialization, every Copilot CLI session will automatically:
 
 ## Configuration
 
-The PowerShell module resolves settings in this order:
+All settings are stored in `~/.copilot/copilot-tracker-config.json`, created by the `initialize-machine` skill. There are no defaults — you must run the skill to configure:
 
-| Setting | Environment Variable | Default |
-|---------|---------------------|---------|
-| Server URL | `COPILOT_TRACKER_URL` | `https://copilot-tracker.azurewebsites.net` |
-| Tenant ID | `COPILOT_TRACKER_TENANT_ID` | `5df6d88f-0d78-491b-9617-8b43a209ba73` |
-| Resource ID | `COPILOT_TRACKER_RESOURCE_ID` | `api://4c8148f5-c913-40c5-863f-1c019821eac4` |
-
-For local development:
-```powershell
-$env:COPILOT_TRACKER_URL = "http://localhost:5000"
+```json
+{
+  "serverUrl": "https://your-tracker.azurewebsites.net",
+  "tenantId": "your-entra-tenant-id",
+  "resourceId": "api://your-app-registration-client-id"
+}
 ```
+
+The module reads this file on every session startup, so changes take effect immediately without restarting your shell.
 
 ## Dashboard
 
