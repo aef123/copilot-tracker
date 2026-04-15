@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TaskDetail } from "../TaskDetail";
-import type { TrackerTask, TaskLog, PagedResult } from "../../api";
+import type { TrackerTask, TaskLog } from "../../api";
 
 vi.mock("../../api", () => ({
   getTask: vi.fn(),
@@ -205,9 +205,6 @@ describe("TaskDetail", () => {
 
     renderTaskDetail();
 
-    const logMessages = await screen.findAllByClassName
-      ? undefined
-      : undefined;
     // Verify all three appear
     expect(await screen.findByText("First entry")).toBeInTheDocument();
     expect(screen.getByText("Second entry")).toBeInTheDocument();

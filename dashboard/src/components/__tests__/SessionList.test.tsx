@@ -327,7 +327,7 @@ describe("SessionList", () => {
         hasMore: false,
       });
 
-      const { container } = render(
+      render(
         <MemoryRouter>
           <Routes>
             <Route path="/" element={<SessionList />} />
