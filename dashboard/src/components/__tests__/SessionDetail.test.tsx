@@ -182,4 +182,56 @@ describe("SessionDetail", () => {
 
     expect(await screen.findByText("Failed to load session")).toBeInTheDocument();
   });
+
+  it("filters tasks client-side to only this session's tasks", async () => {
+    const tasksFromMultipleSessions: TrackerTask[] = [
+      { ...baseTask, id: "task-1", sessionId: "sess-1", title: "My task" },
+      { ...baseTask, id: "task-2", sessionId: "other-sess", title: "Other session task" },
+      { ...baseTask, id: "task-3", sessionId: "sess-1", title: "Another my task" },
+      { ...baseTask, id: "task-4", sessionId: "different-sess", title: "Third session task" },
+    ];
+    mockGetSession.mockResolvedValue(baseSession);
+    mockListTasks.mockResolvedValue({ items: tasksFromMultipleSessions, hasMore: false });
+
+    renderSessionDetail();
+
+    expect(await screen.findByText("My task")).toBeInTheDocument();
+    expect(screen.getByText("Another my task")).toBeInTheDocument();
+    expect(screen.queryByText("Other session task")).not.toBeInTheDocument();
+    expect(screen.queryByText("Third session task")).not.toBeInTheDocument();
+    expect(screen.getByText("Tasks (2)")).toBeInTheDocument();
+  });
+
+  it("displays all task table columns", async () => {
+    mockGetSession.mockResolvedValue(baseSession);
+    mockListTasks.mockResolvedValue({ items: [baseTask], hasMore: false });
+
+    renderSessionDetail();
+
+    await screen.findByText("Run tests");
+    const headers = document.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent);
+    expect(headerTexts).toContain("Status");
+    expect(headerTexts).toContain("Title");
+    expect(headerTexts).toContain("Source");
+    expect(headerTexts).toContain("Result / Error");
+  });
+
+  it("shows dash for task result/error when both absent", async () => {
+    const noResultTask: TrackerTask = {
+      ...baseTask,
+      result: undefined,
+      errorMessage: undefined,
+    };
+    mockGetSession.mockResolvedValue(baseSession);
+    mockListTasks.mockResolvedValue({ items: [noResultTask], hasMore: false });
+
+    renderSessionDetail();
+
+    await screen.findByText("Run tests");
+    // The table cell shows "-" when neither result nor errorMessage exists
+    const cells = document.querySelectorAll("td");
+    const lastTd = cells[cells.length - 1];
+    expect(lastTd.textContent).toBe("-");
+  });
 });

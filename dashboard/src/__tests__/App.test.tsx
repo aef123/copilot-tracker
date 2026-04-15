@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
 
-// Mock MSAL templates to control auth state
+// Control auth state for the real App component
 let isAuthenticated = true;
+const mockLogin = vi.fn();
 
 vi.mock("@azure/msal-react", () => ({
   AuthenticatedTemplate: ({ children }: { children: React.ReactNode }) =>
@@ -12,7 +12,7 @@ vi.mock("@azure/msal-react", () => ({
   UnauthenticatedTemplate: ({ children }: { children: React.ReactNode }) =>
     isAuthenticated ? null : <>{children}</>,
   useMsal: () => ({
-    instance: { loginPopup: vi.fn(), logoutPopup: vi.fn() },
+    instance: { loginPopup: mockLogin, logoutPopup: vi.fn() },
     accounts: isAuthenticated
       ? [{ name: "Test User", username: "test@example.com", localAccountId: "u1" }]
       : [],
@@ -24,7 +24,7 @@ vi.mock("../auth/msalConfig", () => ({
   loginRequest: { scopes: ["api://test/scope"] },
 }));
 
-// Mock all API calls
+// Mock API calls
 vi.mock("../api", () => ({
   getHealth: vi.fn().mockResolvedValue({
     activeSessions: 1,
@@ -64,81 +64,74 @@ vi.mock("../api", () => ({
   getTaskLogs: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
 }));
 
-// App uses BrowserRouter internally, so we test routing by importing the
-// inner pieces and wrapping with MemoryRouter ourselves. We replicate App's
-// route structure so we can control the initial URL.
-import { useAuth } from "../auth/useAuth";
-import { Layout } from "../components/Layout";
-import { HealthDashboard } from "../components/HealthDashboard";
-import { SessionList } from "../components/SessionList";
-import { SessionDetail } from "../components/SessionDetail";
-import { TaskDetail } from "../components/TaskDetail";
+// Replace BrowserRouter with MemoryRouter so we can control the initial URL
+// while still rendering the REAL App component and all its actual routes.
+let testEntries: string[] = ["/"];
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    BrowserRouter: ({ children }: { children: React.ReactNode }) => {
+      const { MemoryRouter } = actual;
+      return <MemoryRouter initialEntries={testEntries}>{children}</MemoryRouter>;
+    },
+  };
+});
 
-function AppRoutes({ initialEntries = ["/"] }: { initialEntries?: string[] }) {
-  return (
-    <MemoryRouter initialEntries={initialEntries}>
-      {isAuthenticated ? (
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<HealthDashboard />} />
-            <Route path="/sessions" element={<SessionList />} />
-            <Route path="/sessions/:machineId/:id" element={<SessionDetail />} />
-            <Route path="/tasks/:queueName/:id" element={<TaskDetail />} />
-            <Route path="*" element={<div>Page Not Found</div>} />
-          </Route>
-        </Routes>
-      ) : (
-        <div className="login-page">
-          <h1>Copilot Session Tracker</h1>
-          <p>Sign in to view your sessions.</p>
-          <button className="btn-primary" onClick={() => {}}>
-            Sign In
-          </button>
-        </div>
-      )}
-    </MemoryRouter>
-  );
-}
+import App from "../App";
 
-describe("App Routing", () => {
+describe("App (real component)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isAuthenticated = true;
+    testEntries = ["/"];
   });
 
   describe("authenticated routes", () => {
     it("renders HealthDashboard at /", async () => {
-      render(<AppRoutes initialEntries={["/"]} />);
+      testEntries = ["/"];
+      render(<App />);
       expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     });
 
     it("renders SessionList at /sessions", async () => {
-      render(<AppRoutes initialEntries={["/sessions"]} />);
+      testEntries = ["/sessions"];
+      render(<App />);
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
     });
 
     it("renders SessionDetail at /sessions/:machineId/:id", async () => {
-      render(<AppRoutes initialEntries={["/sessions/machine-1/sess-1"]} />);
+      testEntries = ["/sessions/machine-1/sess-1"];
+      render(<App />);
       expect(await screen.findByText("Session Details")).toBeInTheDocument();
     });
 
     it("renders TaskDetail at /tasks/:queueName/:id", async () => {
-      render(<AppRoutes initialEntries={["/tasks/default/task-1"]} />);
+      testEntries = ["/tasks/default/task-1"];
+      render(<App />);
       expect(await screen.findByText("Task Details")).toBeInTheDocument();
     });
 
-    it("shows 404 for unknown routes", async () => {
-      render(<AppRoutes initialEntries={["/unknown/path"]} />);
-      expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
+    it("renders nothing for unknown routes (no wildcard route defined)", async () => {
+      testEntries = ["/unknown/path"];
+      render(<App />);
+      // Real App has no catch-all route, so nothing matches and no content renders
+      // The authenticated template is active but no route matches
+      expect(screen.queryByText("Session Details")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
     });
 
-    it("shows 404 for partially matching routes", async () => {
-      render(<AppRoutes initialEntries={["/sessions/only-one-param"]} />);
-      expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
+    it("renders nothing for partially matching routes", async () => {
+      testEntries = ["/sessions/only-one-param"];
+      render(<App />);
+      // No route matches /sessions/:singleParam
+      expect(screen.queryByText("Session Details")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
     });
 
     it("Layout wraps all authenticated routes with nav", async () => {
-      render(<AppRoutes initialEntries={["/"]} />);
+      testEntries = ["/"];
+      render(<App />);
       expect(await screen.findByText("Copilot Session Tracker")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Sessions" })).toBeInTheDocument();
@@ -148,48 +141,62 @@ describe("App Routing", () => {
   describe("unauthenticated state", () => {
     it("shows login page when not authenticated", () => {
       isAuthenticated = false;
-      render(<AppRoutes initialEntries={["/"]} />);
+      render(<App />);
 
       expect(screen.getByText("Sign in to view your sessions.")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
     });
 
-    it("shows login page for deep links when not authenticated", () => {
+    it("does not render any routes when not authenticated", () => {
       isAuthenticated = false;
-      render(<AppRoutes initialEntries={["/sessions/machine-1/sess-1"]} />);
+      testEntries = ["/sessions"];
+      render(<App />);
+
+      expect(screen.getByText("Sign in to view your sessions.")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
+    });
+
+    it("shows login for deep links when not authenticated", () => {
+      isAuthenticated = false;
+      testEntries = ["/sessions/machine-1/sess-1"];
+      render(<App />);
 
       expect(screen.getByText("Sign in to view your sessions.")).toBeInTheDocument();
       expect(screen.queryByText("Session Details")).not.toBeInTheDocument();
     });
 
-    it("shows login page for any route when not authenticated", () => {
+    it("login button calls the login function from useAuth", async () => {
       isAuthenticated = false;
-      render(<AppRoutes initialEntries={["/tasks/default/task-1"]} />);
+      const user = userEvent.setup();
+      render(<App />);
 
-      expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
-      expect(screen.queryByText("Task Details")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+      expect(mockLogin).toHaveBeenCalled();
     });
   });
 
   describe("deep linking", () => {
-    it("deep link to /sessions/:machineId/:id renders correct session", async () => {
-      render(<AppRoutes initialEntries={["/sessions/machine-1/sess-1"]} />);
+    it("deep link to session detail renders correct data", async () => {
+      testEntries = ["/sessions/machine-1/sess-1"];
+      render(<App />);
 
       expect(await screen.findByText("sess-1")).toBeInTheDocument();
       expect(screen.getByText("machine-1")).toBeInTheDocument();
     });
 
-    it("deep link to /tasks/:queueName/:id renders correct task", async () => {
-      render(<AppRoutes initialEntries={["/tasks/default/task-1"]} />);
+    it("deep link to task detail renders correct data", async () => {
+      testEntries = ["/tasks/default/task-1"];
+      render(<App />);
 
       expect(await screen.findByText("task-1")).toBeInTheDocument();
       expect(await screen.findByText("Build project")).toBeInTheDocument();
     });
 
     it("deep link with encoded path segments works", async () => {
-      render(<AppRoutes initialEntries={["/sessions/machine%201/sess-1"]} />);
+      testEntries = ["/sessions/machine%201/sess-1"];
+      render(<App />);
 
-      // Should still render SessionDetail (the component gets the decoded param)
       expect(await screen.findByText("Session Details")).toBeInTheDocument();
     });
   });
@@ -197,43 +204,41 @@ describe("App Routing", () => {
   describe("navigation between routes", () => {
     it("navigating from Dashboard to Sessions works", async () => {
       const user = userEvent.setup();
-      render(<AppRoutes initialEntries={["/"]} />);
+      testEntries = ["/"];
+      render(<App />);
 
       expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-
       await user.click(screen.getByRole("link", { name: "Sessions" }));
-
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
     });
 
     it("navigating from Sessions back to Dashboard works", async () => {
       const user = userEvent.setup();
-      render(<AppRoutes initialEntries={["/sessions"]} />);
+      testEntries = ["/sessions"];
+      render(<App />);
 
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
-
       await user.click(screen.getByRole("link", { name: "Dashboard" }));
-
       expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     });
 
     it("navigating from SessionDetail back to sessions list works", async () => {
       const user = userEvent.setup();
-      render(<AppRoutes initialEntries={["/sessions/machine-1/sess-1"]} />);
+      testEntries = ["/sessions/machine-1/sess-1"];
+      render(<App />);
 
       const backLink = await screen.findByText(/Back to Sessions/);
       await user.click(backLink);
-
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
     });
 
     it("navigating from TaskDetail back to sessions list works", async () => {
       const user = userEvent.setup();
-      render(<AppRoutes initialEntries={["/tasks/default/task-1"]} />);
+      testEntries = ["/tasks/default/task-1"];
+      render(<App />);
 
       const backLink = await screen.findByText(/Back to Sessions/);
       await user.click(backLink);
-
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
     });
   });

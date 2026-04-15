@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { SessionList } from "../SessionList";
 import type { PagedResult, Session } from "../../api";
 
@@ -203,5 +203,143 @@ describe("SessionList", () => {
     await screen.findByText("m1");
     const dashes = screen.getAllByText("-");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  describe("filtering", () => {
+    it("changing status filter triggers re-fetch with correct params", async () => {
+      const user = userEvent.setup();
+      mockListSessions.mockResolvedValue({ items: [], hasMore: false });
+
+      renderWithRouter();
+
+      await screen.findByText("No sessions found.");
+      expect(mockListSessions).toHaveBeenCalledWith({
+        status: undefined,
+        machineId: undefined,
+        continuationToken: undefined,
+      });
+
+      mockListSessions.mockClear();
+      await user.selectOptions(screen.getByLabelText("Filter by status"), "active");
+
+      await waitFor(() => {
+        expect(mockListSessions).toHaveBeenCalledWith(
+          expect.objectContaining({ status: "active" })
+        );
+      });
+    });
+
+    it("changing machine filter triggers re-fetch with correct params", async () => {
+      const user = userEvent.setup();
+      // Return a resolved value for every call
+      mockListSessions.mockResolvedValue({ items: [], hasMore: false });
+
+      renderWithRouter();
+      await screen.findByText("No sessions found.");
+
+      const initialCallCount = mockListSessions.mock.calls.length;
+      await user.type(screen.getByLabelText("Filter by machine ID"), "x");
+
+      // Wait for the re-fetch triggered by the filter change
+      await waitFor(() => {
+        expect(mockListSessions.mock.calls.length).toBeGreaterThan(initialCallCount);
+      });
+      const lastCall = mockListSessions.mock.calls[mockListSessions.mock.calls.length - 1];
+      expect(lastCall[0]).toMatchObject({ machineId: "x" });
+    });
+  });
+
+  describe("pagination", () => {
+    it("Load More appends sessions, does not replace", async () => {
+      const user = userEvent.setup();
+      const page1: Session = {
+        id: "s1",
+        machineId: "m1",
+        status: "active",
+        createdAt: "2025-01-15T10:00:00Z",
+        updatedAt: "2025-01-15T10:00:00Z",
+        lastHeartbeat: "2025-01-15T10:00:00Z",
+        userId: "u1",
+        createdBy: "copilot",
+      };
+      const page2: Session = {
+        id: "s2",
+        machineId: "m2",
+        status: "completed",
+        createdAt: "2025-01-15T11:00:00Z",
+        updatedAt: "2025-01-15T11:00:00Z",
+        lastHeartbeat: "2025-01-15T11:00:00Z",
+        userId: "u1",
+        createdBy: "copilot",
+      };
+
+      mockListSessions
+        .mockResolvedValueOnce({ items: [page1], hasMore: true, continuationToken: "tok1" })
+        .mockResolvedValueOnce({ items: [page2], hasMore: false });
+
+      renderWithRouter();
+
+      await screen.findByText("m1");
+      expect(screen.queryByText("m2")).not.toBeInTheDocument();
+
+      await user.click(screen.getByText("Load More"));
+
+      expect(await screen.findByText("m2")).toBeInTheDocument();
+      // Page 1 data is still present
+      expect(screen.getByText("m1")).toBeInTheDocument();
+    });
+
+    it("Load More passes continuation token", async () => {
+      const user = userEvent.setup();
+      mockListSessions.mockResolvedValueOnce({
+        items: [{
+          id: "s1", machineId: "m1", status: "active",
+          createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:00:00Z",
+          lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
+        }],
+        hasMore: true,
+        continuationToken: "tok-abc",
+      }).mockResolvedValueOnce({ items: [], hasMore: false });
+
+      renderWithRouter();
+      await screen.findByText("m1");
+
+      await user.click(screen.getByText("Load More"));
+
+      await waitFor(() => {
+        expect(mockListSessions).toHaveBeenCalledWith(
+          expect.objectContaining({ continuationToken: "tok-abc" })
+        );
+      });
+    });
+  });
+
+  describe("row navigation", () => {
+    it("clicking a row navigates to session detail", async () => {
+      const user = userEvent.setup();
+      mockListSessions.mockResolvedValue({
+        items: [{
+          id: "sess-1", machineId: "machine-a", status: "active",
+          repository: "org/repo", branch: "main",
+          createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:00:00Z",
+          lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
+        }],
+        hasMore: false,
+      });
+
+      const { container } = render(
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<SessionList />} />
+            <Route path="/sessions/:machineId/:id" element={<div>Session Detail Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      await screen.findByText("machine-a");
+      await user.click(screen.getByText("machine-a").closest("tr")!);
+
+      expect(await screen.findByText("Session Detail Page")).toBeInTheDocument();
+    });
   });
 });

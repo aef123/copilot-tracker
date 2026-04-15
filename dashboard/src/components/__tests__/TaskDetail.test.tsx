@@ -174,4 +174,98 @@ describe("TaskDetail", () => {
 
     expect(await screen.findByText("Failed to load task")).toBeInTheDocument();
   });
+
+  it("sorts logs chronologically (earliest first)", async () => {
+    const unorderedLogs: TaskLog[] = [
+      {
+        id: "log-3",
+        taskId: "task-1",
+        logType: "progress",
+        message: "Third entry",
+        timestamp: "2025-01-15T10:02:00Z",
+      },
+      {
+        id: "log-1",
+        taskId: "task-1",
+        logType: "status_change",
+        message: "First entry",
+        timestamp: "2025-01-15T10:00:00Z",
+      },
+      {
+        id: "log-2",
+        taskId: "task-1",
+        logType: "progress",
+        message: "Second entry",
+        timestamp: "2025-01-15T10:01:00Z",
+      },
+    ];
+
+    mockGetTask.mockResolvedValue(baseTask);
+    mockGetTaskLogs.mockResolvedValue({ items: unorderedLogs, hasMore: false });
+
+    renderTaskDetail();
+
+    const logMessages = await screen.findAllByClassName
+      ? undefined
+      : undefined;
+    // Verify all three appear
+    expect(await screen.findByText("First entry")).toBeInTheDocument();
+    expect(screen.getByText("Second entry")).toBeInTheDocument();
+    expect(screen.getByText("Third entry")).toBeInTheDocument();
+
+    // Verify ordering: First should appear before Second, Second before Third
+    const logEntries = document.querySelectorAll(".log-entry");
+    const messages = Array.from(logEntries).map((el) =>
+      el.querySelector(".log-message")?.textContent
+    );
+    expect(messages).toEqual(["First entry", "Second entry", "Third entry"]);
+  });
+
+  it("renders log type badges for each log entry", async () => {
+    mockGetTask.mockResolvedValue(baseTask);
+    mockGetTaskLogs.mockResolvedValue({
+      items: [
+        { id: "l1", taskId: "task-1", logType: "progress", message: "Msg1", timestamp: "2025-01-15T10:00:00Z" },
+        { id: "l2", taskId: "task-1", logType: "error", message: "Msg2", timestamp: "2025-01-15T10:01:00Z" },
+      ],
+      hasMore: false,
+    });
+
+    renderTaskDetail();
+
+    expect(await screen.findByText("progress")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
+  });
+
+  it("displays correct log count", async () => {
+    const manyLogs: TaskLog[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `log-${i}`,
+      taskId: "task-1",
+      logType: "progress" as const,
+      message: `Log message ${i}`,
+      timestamp: `2025-01-15T10:0${i}:00Z`,
+    }));
+
+    mockGetTask.mockResolvedValue(baseTask);
+    mockGetTaskLogs.mockResolvedValue({ items: manyLogs, hasMore: false });
+
+    renderTaskDetail();
+
+    expect(await screen.findByText("Logs (5)")).toBeInTheDocument();
+  });
+
+  it("displays all task metadata fields", async () => {
+    mockGetTask.mockResolvedValue(baseTask);
+    mockGetTaskLogs.mockResolvedValue({ items: [], hasMore: false });
+
+    renderTaskDetail();
+
+    await screen.findByText("Task Details");
+    expect(screen.getByText("Task ID")).toBeInTheDocument();
+    expect(screen.getByText("Session ID")).toBeInTheDocument();
+    expect(screen.getByText("Queue")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("Title")).toBeInTheDocument();
+    expect(screen.getByText("Source")).toBeInTheDocument();
+  });
 });

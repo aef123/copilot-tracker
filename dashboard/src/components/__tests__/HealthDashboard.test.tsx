@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HealthDashboard } from "../HealthDashboard";
 import type { HealthSummary } from "../../api";
 
@@ -107,5 +107,80 @@ describe("HealthDashboard", () => {
     render(<HealthDashboard />);
 
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+  });
+
+  describe("polling", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("polls every 30 seconds", async () => {
+      const health: HealthSummary = {
+        activeSessions: 1,
+        completedSessions: 2,
+        staleSessions: 0,
+        totalTasks: 5,
+        activeTasks: 1,
+        timestamp: "2025-01-15T10:00:00Z",
+      };
+      mockGetHealth.mockResolvedValue(health);
+
+      render(<HealthDashboard />);
+
+      // Initial fetch
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockGetHealth).toHaveBeenCalledTimes(1);
+
+      // After 30 seconds
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(mockGetHealth).toHaveBeenCalledTimes(2);
+
+      // After another 30 seconds
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(mockGetHealth).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not poll before 30 seconds", async () => {
+      mockGetHealth.mockResolvedValue({
+        activeSessions: 0,
+        completedSessions: 0,
+        staleSessions: 0,
+        totalTasks: 0,
+        activeTasks: 0,
+        timestamp: "2025-01-15T10:00:00Z",
+      });
+
+      render(<HealthDashboard />);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockGetHealth).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(mockGetHealth).toHaveBeenCalledTimes(1);
+    });
+
+    it("cleans up interval on unmount", async () => {
+      mockGetHealth.mockResolvedValue({
+        activeSessions: 0,
+        completedSessions: 0,
+        staleSessions: 0,
+        totalTasks: 0,
+        activeTasks: 0,
+        timestamp: "2025-01-15T10:00:00Z",
+      });
+
+      const { unmount } = render(<HealthDashboard />);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockGetHealth).toHaveBeenCalledTimes(1);
+
+      unmount();
+
+      // After unmount, no more polling
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockGetHealth).toHaveBeenCalledTimes(1);
+    });
   });
 });
