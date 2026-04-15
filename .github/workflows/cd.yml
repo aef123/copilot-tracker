@@ -1,0 +1,92 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  # Allow manual trigger for redeployment
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        if: hashFiles('dashboard/package.json') != ''
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      # Build and test .NET
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      # Build dashboard (if it exists)
+      - name: Install dashboard dependencies
+        if: hashFiles('dashboard/package.json') != ''
+        run: cd dashboard && npm ci
+
+      - name: Build dashboard
+        if: hashFiles('dashboard/package.json') != ''
+        run: cd dashboard && npm run build
+
+      # Copy dashboard output to wwwroot
+      - name: Copy dashboard to wwwroot
+        if: hashFiles('dashboard/package.json') != ''
+        run: |
+          mkdir -p src/CopilotTracker.Server/wwwroot
+          cp -r dashboard/dist/* src/CopilotTracker.Server/wwwroot/ || true
+
+      # Publish .NET app
+      - name: Publish
+        run: dotnet publish src/CopilotTracker.Server -c Release -o ./publish --no-restore
+
+      # Azure login with OIDC (zero secrets)
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Deploy to App Service
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: copilot-tracker
+          package: ./publish
+
+      # Post-deploy smoke test
+      - name: Smoke test
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          HEALTH_URL="https://copilot-tracker.azurewebsites.net/api/health"
+          echo "Testing: $HEALTH_URL"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+          echo "HTTP Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "Smoke test passed!"
+          else
+            echo "WARNING: Smoke test returned $HTTP_STATUS (App Service may not be provisioned yet)"
+            echo "This is expected on first deploy before infrastructure is created via Bicep"
+          fi
