@@ -12,7 +12,7 @@ public class TaskLogService
         _logs = logs;
     }
 
-    public async Task<TaskLog> AddLogAsync(string taskId, string logType, string message)
+    public virtual async Task<TaskLog> AddLogAsync(string taskId, string logType, string message)
     {
         var log = new TaskLog
         {

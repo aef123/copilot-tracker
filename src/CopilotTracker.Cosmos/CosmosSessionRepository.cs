@@ -68,31 +68,20 @@ public class CosmosSessionRepository : ISessionRepository
         int pageSize = 50)
     {
         var clauses = new List<string>();
-        var queryDef = new QueryDefinition(string.Empty);
 
         if (machineId is not null)
-        {
             clauses.Add("c.machineId = @machineId");
-            queryDef = queryDef.WithParameter("@machineId", machineId);
-        }
 
         if (status is not null)
-        {
             clauses.Add("c.status = @status");
-            queryDef = queryDef.WithParameter("@status", status);
-        }
 
         if (since is not null)
-        {
             clauses.Add("c.createdAt >= @since");
-            queryDef = queryDef.WithParameter("@since", since.Value);
-        }
 
         var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : string.Empty;
         var sql = $"SELECT * FROM c{where} ORDER BY c.updatedAt DESC";
-        queryDef = new QueryDefinition(sql);
+        var queryDef = new QueryDefinition(sql);
 
-        // Re-add parameters to the new QueryDefinition
         if (machineId is not null) queryDef = queryDef.WithParameter("@machineId", machineId);
         if (status is not null) queryDef = queryDef.WithParameter("@status", status);
         if (since is not null) queryDef = queryDef.WithParameter("@since", since.Value);

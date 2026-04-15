@@ -17,7 +17,7 @@ public class TaskService
         _logger = logger;
     }
 
-    public async Task<TrackerTask> SetTaskAsync(
+    public virtual async Task<TrackerTask> SetTaskAsync(
         string? taskId, string sessionId, string queueName, string title,
         string status, string? result, string? errorMessage, string source,
         string userId, string createdBy)

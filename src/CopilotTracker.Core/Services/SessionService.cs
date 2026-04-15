@@ -17,7 +17,7 @@ public class SessionService
         _logger = logger;
     }
 
-    public async Task<Session> InitializeSessionAsync(
+    public virtual async Task<Session> InitializeSessionAsync(
         string machineId, string? repository, string? branch, string userId, string createdBy)
     {
         // Clean up stale sessions on this machine before creating a new one
@@ -46,7 +46,7 @@ public class SessionService
         return await _sessions.CreateAsync(session);
     }
 
-    public async Task<Session> HeartbeatAsync(string id, string machineId)
+    public virtual async Task<Session> HeartbeatAsync(string id, string machineId)
     {
         var session = await _sessions.GetAsync(id, machineId)
             ?? throw new InvalidOperationException($"Session '{id}' not found.");
@@ -59,7 +59,7 @@ public class SessionService
         return await _sessions.UpdateAsync(session);
     }
 
-    public async Task<Session> CompleteSessionAsync(string id, string machineId, string? summary)
+    public virtual async Task<Session> CompleteSessionAsync(string id, string machineId, string? summary)
     {
         var session = await _sessions.GetAsync(id, machineId)
             ?? throw new InvalidOperationException($"Session '{id}' not found.");

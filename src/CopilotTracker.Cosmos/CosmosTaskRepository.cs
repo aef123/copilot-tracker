@@ -63,17 +63,12 @@ public class CosmosTaskRepository : ITaskRepository
         int pageSize = 50)
     {
         var clauses = new List<string> { "c.queueName = @queueName" };
-        var queryDef = new QueryDefinition(string.Empty)
-            .WithParameter("@queueName", queueName);
 
         if (status is not null)
-        {
             clauses.Add("c.status = @status");
-            queryDef = queryDef.WithParameter("@status", status);
-        }
 
         var sql = $"SELECT * FROM c WHERE {string.Join(" AND ", clauses)} ORDER BY c.createdAt DESC";
-        queryDef = new QueryDefinition(sql)
+        var queryDef = new QueryDefinition(sql)
             .WithParameter("@queueName", queueName);
         if (status is not null) queryDef = queryDef.WithParameter("@status", status);
 
