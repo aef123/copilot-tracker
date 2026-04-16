@@ -1,9 +1,12 @@
 namespace CopilotTracker.Server.Tests.Controllers;
 
+using System.Security.Claims;
 using CopilotTracker.Core.Models;
 using CopilotTracker.Core.Services;
 using CopilotTracker.Server.Controllers;
+using CopilotTracker.Server.Models.Requests;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
@@ -20,6 +23,17 @@ public class SessionsControllerTests
             Mock.Of<Microsoft.Extensions.Logging.ILogger<SessionService>>());
 
         _controller = new SessionsController(_sessionService.Object);
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("oid", "test-user-id"),
+                    new Claim("name", "Test User"),
+                ], "Test"))
+            }
+        };
     }
 
     [Fact]
@@ -226,5 +240,101 @@ public class SessionsControllerTests
 
         result.Should().BeOfType<OkObjectResult>();
         _sessionService.Verify(s => s.ListAsync("m1", "active", since, "tok", 25), Times.Once);
+    }
+
+    // --- POST endpoint tests ---
+
+    [Fact]
+    public async Task Initialize_ReturnsCreatedWithSession()
+    {
+        var session = new Session { Id = "s1", MachineId = "m1" };
+        _sessionService
+            .Setup(s => s.InitializeSessionAsync("m1", null, null, "test-user-id", "Test User"))
+            .ReturnsAsync(session);
+
+        var request = new InitializeSessionRequest { MachineId = "m1" };
+        var result = await _controller.Initialize(request);
+
+        var created = result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        created.Value.Should().BeEquivalentTo(session);
+    }
+
+    [Fact]
+    public async Task Initialize_WithOptionalFields_PassesThemToService()
+    {
+        var session = new Session { Id = "s1", MachineId = "m1", Repository = "repo", Branch = "main" };
+        _sessionService
+            .Setup(s => s.InitializeSessionAsync("m1", "repo", "main", "test-user-id", "Test User"))
+            .ReturnsAsync(session);
+
+        var request = new InitializeSessionRequest { MachineId = "m1", Repository = "repo", Branch = "main" };
+        var result = await _controller.Initialize(request);
+
+        result.Should().BeOfType<CreatedAtActionResult>();
+    }
+
+    [Fact]
+    public async Task Heartbeat_ReturnsOkWithSession()
+    {
+        var session = new Session { Id = "s1", MachineId = "m1" };
+        _sessionService
+            .Setup(s => s.HeartbeatAsync("s1", "m1"))
+            .ReturnsAsync(session);
+
+        var result = await _controller.Heartbeat("m1", "s1");
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(session);
+    }
+
+    [Fact]
+    public async Task Heartbeat_Returns404WhenSessionNotFound()
+    {
+        _sessionService
+            .Setup(s => s.HeartbeatAsync("missing", "m1"))
+            .ThrowsAsync(new InvalidOperationException("Session 'missing' not found"));
+
+        var result = await _controller.Heartbeat("m1", "missing");
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Complete_ReturnsOkWithSession()
+    {
+        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Completed };
+        _sessionService
+            .Setup(s => s.CompleteSessionAsync("s1", "m1", "done"))
+            .ReturnsAsync(session);
+
+        var request = new CompleteSessionRequest { Summary = "done" };
+        var result = await _controller.Complete("m1", "s1", request);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(session);
+    }
+
+    [Fact]
+    public async Task Complete_Returns404WhenSessionNotFound()
+    {
+        _sessionService
+            .Setup(s => s.CompleteSessionAsync("missing", "m1", null))
+            .ThrowsAsync(new InvalidOperationException("Session 'missing' not found"));
+
+        var result = await _controller.Complete("m1", "missing");
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Complete_Returns409WhenSessionNotActive()
+    {
+        _sessionService
+            .Setup(s => s.CompleteSessionAsync("s1", "m1", null))
+            .ThrowsAsync(new InvalidOperationException("Session is not active"));
+
+        var result = await _controller.Complete("m1", "s1");
+
+        result.Should().BeOfType<ConflictObjectResult>();
     }
 }

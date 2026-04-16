@@ -4,7 +4,7 @@ This file is the "start here" for any new Copilot session. It describes what's a
 
 ## What This Is
 
-A system to track Copilot CLI sessions and tasks across multiple machines. Azure-hosted backend with MCP server (for CLI), REST API (for dashboard), and a React SPA dashboard. Cosmos DB (serverless, RBAC-only) for storage.
+A system to track Copilot CLI sessions and tasks across multiple machines. Azure-hosted backend with REST API (for CLI and dashboard), and a React SPA dashboard. Cosmos DB (serverless, RBAC-only) for storage.
 
 ## Repository
 
@@ -19,14 +19,13 @@ A system to track Copilot CLI sessions and tasks across multiple machines. Azure
 ### What's Built
 
 - **.NET 10 solution** with 3 projects (Server, Core, Cosmos) + 3 test projects
-- **MCP server** at `/mcp` with 6 tools: initialize-session, heartbeat, complete-session, set-task, add-log, get-session
-- **REST API** at `/api/*` with controllers for sessions, tasks, health
+- **REST API** at `/api/*` with controllers for sessions (GET + POST), tasks (GET + POST), health
 - **Service layer**: SessionService, TaskService, TaskLogService, HealthService (30s cache)
 - **Cosmos repositories**: partition-key-aware, behind interfaces (ISessionRepository, ITaskRepository, ITaskLogRepository)
 - **Entra auth**: Microsoft.Identity.Web bearer token validation
 - **Stale session cleanup**: BackgroundService on configurable timer
 - **React dashboard**: Vite + TypeScript + MSAL.js auth + typed API client + 5 components (HealthDashboard, SessionList, SessionDetail, TaskDetail, Layout)
-- **PowerShell module**: CopilotTracker.psm1 talks to MCP server (not Cosmos directly)
+- **PowerShell module**: CopilotTracker.psm1 talks to REST API (not Cosmos directly)
 - **CI/CD**: GitHub Actions workflows (ci.yml for PRs, cd.yml for deploy on merge)
 - **Bicep IaC**: App Service, Cosmos DB (serverless, RBAC-only), UAMI, role assignments
 - **Setup scripts**: setup-deployment.ps1, setup-app-registration.ps1
@@ -49,7 +48,7 @@ See `context/azure-resources.md` for details.
 
 1. Deploy infrastructure via Bicep (`deploy/deploy.ps1`)
 2. Push to main to trigger CD pipeline
-3. Verify end-to-end: CLI -> MCP -> Cosmos, Dashboard -> API -> Cosmos
+3. Verify end-to-end: CLI -> REST API -> Cosmos, Dashboard -> API -> Cosmos
 4. Post-deploy smoke tests
 
 See `docs/planning/phase-status.md` for detailed progress.

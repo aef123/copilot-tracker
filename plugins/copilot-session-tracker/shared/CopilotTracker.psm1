@@ -1,7 +1,6 @@
 # CopilotTracker.psm1 - PowerShell module for Copilot Session Tracker
 #
-# Writes go through the MCP endpoint (/mcp) using JSON-RPC tool calls.
-# Reads use the REST API (/api/*) when available.
+# All operations use the REST API (/api/*).
 # The server handles all Cosmos DB access internally.
 #
 # Configuration is read from ~/.copilot/copilot-tracker-config.json.
@@ -79,49 +78,28 @@ function Get-TrackerHeaders {
     }
 }
 
-# ── MCP helper (JSON-RPC tool call) ──────────────────────────────────
-
-function Invoke-McpTool {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ToolName,
-        [Parameter(Mandatory)][hashtable]$Arguments
-    )
-
-    $headers = Get-TrackerHeaders
-    if (-not $headers) { return $null }
-
-    $body = @{
-        jsonrpc = "2.0"
-        method  = "tools/call"
-        id      = [guid]::NewGuid().ToString()
-        params  = @{
-            name      = $ToolName
-            arguments = $Arguments
-        }
-    } | ConvertTo-Json -Depth 5
-
-    $response = Invoke-RestMethod -Uri "$script:BaseUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-    if ($response.result.content) {
-        return $response.result.content[0].text | ConvertFrom-Json
-    }
-    return $null
-}
-
-# ── REST helper (for read endpoints) ─────────────────────────────────
+# ── REST helpers ──────────────────────────────────────────────────────
 
 function Invoke-TrackerApi {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [string]$Method = "GET"
+        [string]$Method = "GET",
+        [string]$Body
     )
 
     $headers = Get-TrackerHeaders
     if (-not $headers) { return $null }
 
     $uri = "$script:BaseUrl$Path"
-    return Invoke-RestMethod -Uri $uri -Method $Method -Headers $headers -ErrorAction Stop
+    $params = @{
+        Uri     = $uri
+        Method  = $Method
+        Headers = $headers
+    }
+    if ($Body) { $params.Body = $Body }
+
+    return Invoke-RestMethod @params -ErrorAction Stop
 }
 
 # ── Session management ───────────────────────────────────────────────
@@ -139,13 +117,13 @@ function Start-TrackerSession {
     }
 
     try {
-        $args_ = @{ machineId = $script:MachineId }
-        if ($Repo) { $args_.repository = $Repo }
-        if ($Branch) { $args_.branch = $Branch }
+        $body = @{ machineId = $script:MachineId }
+        if ($Repo) { $body.repository = $Repo }
+        if ($Branch) { $body.branch = $Branch }
 
-        $sessionData = Invoke-McpTool -ToolName "initialize-session" -Arguments $args_
-        if ($sessionData.id) {
-            $script:SessionId = $sessionData.id
+        $session = Invoke-TrackerApi -Path "/api/sessions" -Method "POST" -Body ($body | ConvertTo-Json)
+        if ($session.id) {
+            $script:SessionId = $session.id
             Start-HeartbeatJob
             return $script:SessionId
         }
@@ -162,10 +140,7 @@ function Send-TrackerHeartbeat {
     if (-not $script:SessionId -or -not $script:BaseUrl) { return }
 
     try {
-        Invoke-McpTool -ToolName "heartbeat" -Arguments @{
-            sessionId = $script:SessionId
-            machineId = $script:MachineId
-        } | Out-Null
+        Invoke-TrackerApi -Path "/api/sessions/$($script:MachineId)/$($script:SessionId)/heartbeat" -Method "POST" | Out-Null
     }
     catch {
         Write-Verbose "Heartbeat failed: $_"
@@ -183,13 +158,10 @@ function Complete-TrackerSession {
     Stop-HeartbeatJob
 
     try {
-        $args_ = @{
-            sessionId = $script:SessionId
-            machineId = $script:MachineId
-        }
-        if ($Summary) { $args_.summary = $Summary }
+        $body = @{}
+        if ($Summary) { $body.summary = $Summary }
 
-        Invoke-McpTool -ToolName "complete-session" -Arguments $args_ | Out-Null
+        Invoke-TrackerApi -Path "/api/sessions/$($script:MachineId)/$($script:SessionId)/complete" -Method "POST" -Body ($body | ConvertTo-Json) | Out-Null
         Write-Host "Session completed: $($script:SessionId)" -ForegroundColor Green
     }
     catch {
@@ -240,18 +212,18 @@ function Set-TrackerTask {
     }
 
     try {
-        $args_ = @{
+        $body = @{
             sessionId = $script:SessionId
             queueName = $QueueName
             title     = $Title
             status    = $Status
             source    = $Source
         }
-        if ($TaskId) { $args_.taskId = $TaskId }
-        if ($Result) { $args_.result = $Result }
-        if ($ErrorMessage) { $args_.errorMessage = $ErrorMessage }
+        if ($TaskId) { $body.taskId = $TaskId }
+        if ($Result) { $body.result = $Result }
+        if ($ErrorMessage) { $body.errorMessage = $ErrorMessage }
 
-        $taskData = Invoke-McpTool -ToolName "set-task" -Arguments $args_
+        $taskData = Invoke-TrackerApi -Path "/api/tasks" -Method "POST" -Body ($body | ConvertTo-Json)
         if ($taskData.id) {
             return $taskData.id
         }
@@ -275,11 +247,10 @@ function Add-TrackerLog {
     if (-not $script:BaseUrl) { return }
 
     try {
-        Invoke-McpTool -ToolName "add-log" -Arguments @{
-            taskId  = $TaskId
+        Invoke-TrackerApi -Path "/api/tasks/default/$TaskId/logs" -Method "POST" -Body (@{
             logType = $LogType
             message = $Message
-        } | Out-Null
+        } | ConvertTo-Json) | Out-Null
     }
     catch {
         Write-Verbose "Failed to add log: $_"
@@ -302,19 +273,7 @@ function Start-HeartbeatJob {
                     "Authorization" = "Bearer $token"
                     "Content-Type"  = "application/json"
                 }
-                $body = @{
-                    jsonrpc = "2.0"
-                    method  = "tools/call"
-                    id      = [guid]::NewGuid().ToString()
-                    params  = @{
-                        name      = "heartbeat"
-                        arguments = @{
-                            sessionId = $SessionId
-                            machineId = $MachineId
-                        }
-                    }
-                } | ConvertTo-Json -Depth 5
-                Invoke-RestMethod -Uri "$BaseUrl/mcp" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+                Invoke-RestMethod -Uri "$BaseUrl/api/sessions/$MachineId/$SessionId/heartbeat" -Method Post -Headers $headers -ErrorAction Stop | Out-Null
             }
             catch {
                 # Best-effort; silently continue

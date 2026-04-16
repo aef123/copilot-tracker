@@ -11,8 +11,8 @@ Project-specific patterns and rules. Updated as conventions are established.
 ## Backend (.NET)
 
 - Repository interfaces in `CopilotTracker.Core/Interfaces/` -- never leak Cosmos SDK types (no `FeedIterator`, no `PartitionKey` in signatures)
-- Services in `CopilotTracker.Core/Services/` -- all business logic lives here, not in controllers or MCP tools
-- Controllers and MCP tools are thin -- validate input, call a service, return result
+- Services in `CopilotTracker.Core/Services/` -- all business logic lives here, not in controllers
+- Controllers are thin -- validate input, call a service, return result
 - Use `DefaultAzureCredential` with explicit `ManagedIdentityClientId` for Cosmos DB auth
 - Continuation tokens for pagination, not page numbers
 - Caller identity (Entra object ID, display name) stamped into audit fields on every write

@@ -5,6 +5,6 @@
   "author": {
     "name": "aef123"
   },
-  "keywords": ["session-tracking", "azure", "dashboard", "mcp", "telemetry"],
+  "keywords": ["session-tracking", "azure", "dashboard", "rest-api", "telemetry"],
   "skills": "skills/"
 }

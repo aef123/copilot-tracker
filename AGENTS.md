@@ -16,7 +16,7 @@ pwsh -Command "Import-Module Pester; $config = New-PesterConfiguration; $config.
 
 ## Project Structure
 
-- `src/` — .NET server (API, MCP endpoint, Cosmos DB repositories)
+- `src/` — .NET server (REST API, Cosmos DB repositories)
 - `dashboard/` — React/Vite SPA (MSAL auth, session/task views)
 - `plugins/copilot-session-tracker/` — Installable Copilot CLI plugin (canonical source for all plugin files)
 - `deploy/` — Bicep IaC and setup scripts

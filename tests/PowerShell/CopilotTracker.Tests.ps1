@@ -107,90 +107,6 @@ Describe "CopilotTracker Module" {
         }
     }
 
-    # ── MCP Tool Invocation ───────────────────────────────────────────
-
-    Describe "Invoke-McpTool" {
-
-        BeforeEach {
-            InModuleScope CopilotTracker {
-                $script:BaseUrl = "https://test-server.example.com"
-            }
-        }
-
-        It "sends correct JSON-RPC body structure" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod {
-                    # Validate the body that was sent
-                    $parsed = $Body | ConvertFrom-Json
-                    $parsed.jsonrpc | Should -Be "2.0"
-                    $parsed.method | Should -Be "tools/call"
-                    $parsed.id | Should -Not -BeNullOrEmpty
-                    $parsed.params.name | Should -Be "test-tool"
-                    $parsed.params.arguments.key1 | Should -Be "value1"
-                    return @{ result = @{ content = @(@{ text = '{"ok":true}' }) } }
-                }
-                Invoke-McpTool -ToolName "test-tool" -Arguments @{ key1 = "value1" }
-            }
-        }
-
-        It "posts to the /mcp endpoint" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod {
-                    $Uri | Should -Be "https://test-server.example.com/mcp"
-                    return @{ result = @{ content = @(@{ text = '{"ok":true}' }) } }
-                }
-                Invoke-McpTool -ToolName "any-tool" -Arguments @{}
-            }
-        }
-
-        It "returns parsed JSON from response content" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod {
-                    return @{ result = @{ content = @(@{ text = '{"name":"session-1","status":"active"}' }) } }
-                }
-                $result = Invoke-McpTool -ToolName "get-thing" -Arguments @{}
-                $result.name | Should -Be "session-1"
-                $result.status | Should -Be "active"
-            }
-        }
-
-        It "returns null when response has no content" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod { return @{ result = @{} } }
-                $result = Invoke-McpTool -ToolName "empty-tool" -Arguments @{}
-                $result | Should -BeNullOrEmpty
-            }
-        }
-
-        It "returns null when auth fails" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return $null }
-                $result = Invoke-McpTool -ToolName "some-tool" -Arguments @{}
-                $result | Should -BeNullOrEmpty
-            }
-        }
-
-        It "propagates HTTP errors with ErrorAction Stop" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod { throw "The remote server returned an error: (500) Internal Server Error." }
-                { Invoke-McpTool -ToolName "bad-tool" -Arguments @{} } | Should -Throw "*500*"
-            }
-        }
-
-        It "propagates network failure" {
-            InModuleScope CopilotTracker {
-                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
-                Mock Invoke-RestMethod { throw "Unable to connect to the remote server" }
-                { Invoke-McpTool -ToolName "bad-tool" -Arguments @{} } | Should -Throw "*Unable to connect*"
-            }
-        }
-    }
-
     # ── REST API Helper ───────────────────────────────────────────────
 
     Describe "Invoke-TrackerApi" {
@@ -223,11 +139,31 @@ Describe "CopilotTracker Module" {
             }
         }
 
+        It "supports POST method with body" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod {
+                    $Method | Should -Be "POST"
+                    $Body | Should -Not -BeNullOrEmpty
+                    return @{ id = "new" }
+                }
+                Invoke-TrackerApi -Path "/api/sessions" -Method "POST" -Body '{"machineId":"PC"}'
+            }
+        }
+
         It "returns null when auth fails" {
             InModuleScope CopilotTracker {
                 Mock Get-TrackerHeaders { return $null }
                 $result = Invoke-TrackerApi -Path "/api/test"
                 $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It "propagates HTTP errors" {
+            InModuleScope CopilotTracker {
+                Mock Get-TrackerHeaders { return @{ Authorization = "Bearer fake"; "Content-Type" = "application/json" } }
+                Mock Invoke-RestMethod { throw "The remote server returned an error: (500) Internal Server Error." }
+                { Invoke-TrackerApi -Path "/api/test" } | Should -Throw "*500*"
             }
         }
     }
@@ -244,31 +180,34 @@ Describe "CopilotTracker Module" {
             }
         }
 
-        It "calls Invoke-McpTool with 'set-task' tool name" {
+        It "calls POST /api/tasks" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $ToolName | Should -Be "set-task"
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/tasks"
+                    $Method | Should -Be "POST"
                     return @{ id = "task-001" }
                 }
                 Set-TrackerTask -Title "Build project" -Status "started"
             }
         }
 
-        It "includes sessionId in arguments" {
+        It "includes sessionId in body" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.sessionId | Should -Be "session-abc"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.sessionId | Should -Be "session-abc"
                     return @{ id = "task-001" }
                 }
                 Set-TrackerTask -Title "Build project" -Status "started"
             }
         }
 
-        It "includes Title and Status in arguments" {
+        It "includes Title and Status in body" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.title | Should -Be "Run tests"
-                    $Arguments.status | Should -Be "done"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.title | Should -Be "Run tests"
+                    $parsed.status | Should -Be "done"
                     return @{ id = "task-002" }
                 }
                 Set-TrackerTask -Title "Run tests" -Status "done"
@@ -277,8 +216,9 @@ Describe "CopilotTracker Module" {
 
         It "includes optional TaskId when provided" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.taskId | Should -Be "existing-task-99"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.taskId | Should -Be "existing-task-99"
                     return @{ id = "existing-task-99" }
                 }
                 Set-TrackerTask -TaskId "existing-task-99" -Title "Update" -Status "done"
@@ -287,8 +227,9 @@ Describe "CopilotTracker Module" {
 
         It "includes Result when provided" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.result | Should -Be "All 12 tests passed"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.result | Should -Be "All 12 tests passed"
                     return @{ id = "task-003" }
                 }
                 Set-TrackerTask -Title "Tests" -Status "done" -Result "All 12 tests passed"
@@ -297,8 +238,9 @@ Describe "CopilotTracker Module" {
 
         It "includes ErrorMessage when provided" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.errorMessage | Should -Be "Compile error in auth.cs"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.errorMessage | Should -Be "Compile error in auth.cs"
                     return @{ id = "task-004" }
                 }
                 Set-TrackerTask -Title "Build" -Status "failed" -ErrorMessage "Compile error in auth.cs"
@@ -307,7 +249,7 @@ Describe "CopilotTracker Module" {
 
         It "returns the task ID from response" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool { return @{ id = "task-xyz" } }
+                Mock Invoke-TrackerApi { return @{ id = "task-xyz" } }
                 $id = Set-TrackerTask -Title "Work" -Status "started"
                 $id | Should -Be "task-xyz"
             }
@@ -323,8 +265,9 @@ Describe "CopilotTracker Module" {
 
         It "defaults Source to 'prompt'" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.source | Should -Be "prompt"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.source | Should -Be "prompt"
                     return @{ id = "task-005" }
                 }
                 Set-TrackerTask -Title "Default source" -Status "started"
@@ -333,8 +276,9 @@ Describe "CopilotTracker Module" {
 
         It "defaults QueueName to 'default'" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.queueName | Should -Be "default"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.queueName | Should -Be "default"
                     return @{ id = "task-006" }
                 }
                 Set-TrackerTask -Title "Default queue" -Status "started"
@@ -352,13 +296,14 @@ Describe "CopilotTracker Module" {
             }
         }
 
-        It "calls Invoke-McpTool with 'add-log' and correct arguments" {
+        It "calls POST /api/tasks/default/{taskId}/logs with correct body" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $ToolName | Should -Be "add-log"
-                    $Arguments.taskId | Should -Be "task-abc"
-                    $Arguments.logType | Should -Be "progress"
-                    $Arguments.message | Should -Be "Step 2 complete"
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/tasks/default/task-abc/logs"
+                    $Method | Should -Be "POST"
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.logType | Should -Be "progress"
+                    $parsed.message | Should -Be "Step 2 complete"
                 }
                 Add-TrackerLog -TaskId "task-abc" -LogType "progress" -Message "Step 2 complete"
             }
@@ -367,7 +312,7 @@ Describe "CopilotTracker Module" {
         It "does nothing when BaseUrl is not set" {
             InModuleScope CopilotTracker {
                 $script:BaseUrl = $null
-                Mock Invoke-McpTool { throw "Should not be called" }
+                Mock Invoke-TrackerApi { throw "Should not be called" }
                 # Should not throw
                 Add-TrackerLog -TaskId "task-abc" -LogType "error" -Message "fail"
             }
@@ -386,10 +331,11 @@ Describe "CopilotTracker Module" {
             }
         }
 
-        It "calls initialize-session via Invoke-McpTool" {
+        It "calls POST /api/sessions" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $ToolName | Should -Be "initialize-session"
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/sessions"
+                    $Method | Should -Be "POST"
                     return @{ id = "new-session-1" }
                 }
                 Mock Start-HeartbeatJob {}
@@ -399,7 +345,7 @@ Describe "CopilotTracker Module" {
 
         It "stores session ID in module state" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool { return @{ id = "new-session-2" } }
+                Mock Invoke-TrackerApi { return @{ id = "new-session-2" } }
                 Mock Start-HeartbeatJob {}
                 Start-TrackerSession
                 $script:SessionId | Should -Be "new-session-2"
@@ -408,18 +354,19 @@ Describe "CopilotTracker Module" {
 
         It "returns the session ID" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool { return @{ id = "new-session-3" } }
+                Mock Invoke-TrackerApi { return @{ id = "new-session-3" } }
                 Mock Start-HeartbeatJob {}
                 $result = Start-TrackerSession
                 $result | Should -Be "new-session-3"
             }
         }
 
-        It "includes repo and branch in arguments when provided" {
+        It "includes repo and branch in body when provided" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool {
-                    $Arguments.repository | Should -Be "my/repo"
-                    $Arguments.branch | Should -Be "feature-x"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.repository | Should -Be "my/repo"
+                    $parsed.branch | Should -Be "feature-x"
                     return @{ id = "s1" }
                 }
                 Mock Start-HeartbeatJob {}
@@ -429,7 +376,7 @@ Describe "CopilotTracker Module" {
 
         It "starts heartbeat job on success" {
             InModuleScope CopilotTracker {
-                Mock Invoke-McpTool { return @{ id = "s1" } }
+                Mock Invoke-TrackerApi { return @{ id = "s1" } }
                 Mock Start-HeartbeatJob {} -Verifiable
                 Start-TrackerSession
                 Should -InvokeVerifiable
@@ -440,7 +387,7 @@ Describe "CopilotTracker Module" {
             InModuleScope CopilotTracker {
                 $script:BaseUrl = $null
                 Mock Initialize-TrackerConnection {} -Verifiable
-                Mock Invoke-McpTool { return @{ id = "s1" } }
+                Mock Invoke-TrackerApi { return @{ id = "s1" } }
                 Mock Start-HeartbeatJob {}
                 Start-TrackerSession
                 Should -InvokeVerifiable
@@ -460,12 +407,12 @@ Describe "CopilotTracker Module" {
             }
         }
 
-        It "calls complete-session MCP tool" {
+        It "calls POST /api/sessions/{machineId}/{id}/complete" {
             InModuleScope CopilotTracker {
                 Mock Stop-HeartbeatJob {}
-                Mock Invoke-McpTool {
-                    $ToolName | Should -Be "complete-session"
-                    $Arguments.sessionId | Should -Be "active-session"
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/sessions/TEST-PC/active-session/complete"
+                    $Method | Should -Be "POST"
                 }
                 Complete-TrackerSession
             }
@@ -474,8 +421,9 @@ Describe "CopilotTracker Module" {
         It "includes summary when provided" {
             InModuleScope CopilotTracker {
                 Mock Stop-HeartbeatJob {}
-                Mock Invoke-McpTool {
-                    $Arguments.summary | Should -Be "All done"
+                Mock Invoke-TrackerApi {
+                    $parsed = $Body | ConvertFrom-Json
+                    $parsed.summary | Should -Be "All done"
                 }
                 Complete-TrackerSession -Summary "All done"
             }
@@ -484,7 +432,7 @@ Describe "CopilotTracker Module" {
         It "clears SessionId after completion" {
             InModuleScope CopilotTracker {
                 Mock Stop-HeartbeatJob {}
-                Mock Invoke-McpTool {}
+                Mock Invoke-TrackerApi {}
                 Complete-TrackerSession
                 $script:SessionId | Should -BeNullOrEmpty
             }
@@ -493,7 +441,7 @@ Describe "CopilotTracker Module" {
         It "stops heartbeat job" {
             InModuleScope CopilotTracker {
                 Mock Stop-HeartbeatJob {} -Verifiable
-                Mock Invoke-McpTool {}
+                Mock Invoke-TrackerApi {}
                 Complete-TrackerSession
                 Should -InvokeVerifiable
             }
@@ -503,7 +451,7 @@ Describe "CopilotTracker Module" {
             InModuleScope CopilotTracker {
                 $script:SessionId = $null
                 Mock Stop-HeartbeatJob { throw "Should not be called" }
-                Mock Invoke-McpTool { throw "Should not be called" }
+                Mock Invoke-TrackerApi { throw "Should not be called" }
                 Complete-TrackerSession
             }
         }
@@ -556,15 +504,14 @@ Describe "CopilotTracker Module" {
 
     Describe "Send-TrackerHeartbeat" {
 
-        It "calls heartbeat MCP tool with session and machine IDs" {
+        It "calls POST /api/sessions/{machineId}/{id}/heartbeat" {
             InModuleScope CopilotTracker {
                 $script:BaseUrl = "https://test-server.example.com"
                 $script:SessionId = "hb-session"
                 $script:MachineId = "HB-PC"
-                Mock Invoke-McpTool {
-                    $ToolName | Should -Be "heartbeat"
-                    $Arguments.sessionId | Should -Be "hb-session"
-                    $Arguments.machineId | Should -Be "HB-PC"
+                Mock Invoke-TrackerApi {
+                    $Path | Should -Be "/api/sessions/HB-PC/hb-session/heartbeat"
+                    $Method | Should -Be "POST"
                 }
                 Send-TrackerHeartbeat
             }
@@ -574,7 +521,7 @@ Describe "CopilotTracker Module" {
             InModuleScope CopilotTracker {
                 $script:SessionId = $null
                 $script:BaseUrl = "https://test-server.example.com"
-                Mock Invoke-McpTool { throw "Should not be called" }
+                Mock Invoke-TrackerApi { throw "Should not be called" }
                 Send-TrackerHeartbeat
             }
         }
@@ -583,7 +530,7 @@ Describe "CopilotTracker Module" {
             InModuleScope CopilotTracker {
                 $script:SessionId = "some-session"
                 $script:BaseUrl = $null
-                Mock Invoke-McpTool { throw "Should not be called" }
+                Mock Invoke-TrackerApi { throw "Should not be called" }
                 Send-TrackerHeartbeat
             }
         }
@@ -612,7 +559,6 @@ Describe "CopilotTracker Module" {
         It "does not export internal helpers" {
             $exported = (Get-Module CopilotTracker).ExportedFunctions.Keys
             $exported | Should -Not -Contain "Get-TrackerHeaders"
-            $exported | Should -Not -Contain "Invoke-McpTool"
             $exported | Should -Not -Contain "Invoke-TrackerApi"
             $exported | Should -Not -Contain "Start-HeartbeatJob"
             $exported | Should -Not -Contain "Stop-HeartbeatJob"

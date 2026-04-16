@@ -1,9 +1,12 @@
 namespace CopilotTracker.Server.Tests.Controllers;
 
+using System.Security.Claims;
 using CopilotTracker.Core.Models;
 using CopilotTracker.Core.Services;
 using CopilotTracker.Server.Controllers;
+using CopilotTracker.Server.Models.Requests;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
@@ -24,6 +27,17 @@ public class TasksControllerTests
             Mock.Of<Core.Interfaces.ITaskLogRepository>());
 
         _controller = new TasksController(_taskService.Object, _logService.Object);
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("oid", "test-user-id"),
+                    new Claim("name", "Test User"),
+                ], "Test"))
+            }
+        };
     }
 
     [Fact]
@@ -370,5 +384,78 @@ public class TasksControllerTests
         await _controller.GetLogs("default", "missing", null, 100);
 
         _logService.Verify(s => s.GetLogsPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()), Times.Never);
+    }
+
+    // --- POST endpoint tests ---
+
+    [Fact]
+    public async Task SetTask_ReturnsOkWithTask()
+    {
+        var task = new TrackerTask { Id = "t1", SessionId = "s1", QueueName = "default", Title = "Test" };
+        _taskService
+            .Setup(s => s.SetTaskAsync(null, "s1", "default", "Test", "started", null, null, "prompt", "test-user-id", "Test User"))
+            .ReturnsAsync(task);
+
+        var request = new SetTaskRequest { SessionId = "s1", Title = "Test", Status = "started" };
+        var result = await _controller.SetTask(request);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(task);
+    }
+
+    [Fact]
+    public async Task SetTask_WithTaskId_PassesIdForUpdate()
+    {
+        var task = new TrackerTask { Id = "existing-t1", SessionId = "s1", Status = "done" };
+        _taskService
+            .Setup(s => s.SetTaskAsync("existing-t1", "s1", "default", "Updated", "done", "All good", null, "prompt", "test-user-id", "Test User"))
+            .ReturnsAsync(task);
+
+        var request = new SetTaskRequest
+        {
+            TaskId = "existing-t1", SessionId = "s1", Title = "Updated",
+            Status = "done", Result = "All good"
+        };
+        var result = await _controller.SetTask(request);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task AddLog_ReturnsOkWithLog()
+    {
+        var task = new TrackerTask { Id = "t1", QueueName = "default" };
+        _taskService.Setup(s => s.GetAsync("t1", "default")).ReturnsAsync(task);
+
+        var log = new TaskLog { Id = "l1", TaskId = "t1", LogType = "progress", Message = "Working" };
+        _logService.Setup(s => s.AddLogAsync("t1", "progress", "Working")).ReturnsAsync(log);
+
+        var request = new AddLogRequest { LogType = "progress", Message = "Working" };
+        var result = await _controller.AddLog("default", "t1", request);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(log);
+    }
+
+    [Fact]
+    public async Task AddLog_Returns404WhenTaskNotFound()
+    {
+        _taskService.Setup(s => s.GetAsync("missing", "default")).ReturnsAsync((TrackerTask?)null);
+
+        var request = new AddLogRequest { LogType = "progress", Message = "Working" };
+        var result = await _controller.AddLog("default", "missing", request);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task AddLog_DoesNotCallLogService_WhenTaskNotFound()
+    {
+        _taskService.Setup(s => s.GetAsync("missing", "default")).ReturnsAsync((TrackerTask?)null);
+
+        var request = new AddLogRequest { LogType = "progress", Message = "Working" };
+        await _controller.AddLog("default", "missing", request);
+
+        _logService.Verify(s => s.AddLogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 }

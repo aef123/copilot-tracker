@@ -166,11 +166,13 @@ public class ApiPipelineTests : IClassFixture<TrackerWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Mcp_ReturnsUnauthorized_WithoutToken()
+    public async Task Mcp_ReturnsNotFound_Unauthenticated()
     {
         var response = await _unauthClient.PostAsync("/mcp", null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        // MCP endpoint removed; POST to /mcp is no longer routed
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
     }
 
     // ---------------------------------------------------------------
@@ -227,7 +229,7 @@ public class ApiPipelineTests : IClassFixture<TrackerWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Mcp_AcceptsAuthenticatedPost()
+    public async Task Mcp_ReturnsNotFound_Authenticated()
     {
         var jsonRpc = new StringContent(
             """{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}""",
@@ -236,7 +238,9 @@ public class ApiPipelineTests : IClassFixture<TrackerWebApplicationFactory>
 
         var response = await _authClient.PostAsync("/mcp", jsonRpc);
 
-        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+        // MCP endpoint removed; POST to /mcp is no longer routed
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
     }
 }
 

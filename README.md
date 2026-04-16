@@ -6,16 +6,15 @@ A .NET server with a React dashboard that tracks Copilot CLI sessions, tasks, an
 
 ```
 Copilot CLI  →  PowerShell module  →  .NET Server  →  Cosmos DB
-                (auth + MCP calls)     (MCP + REST)    (storage)
+                (auth + REST calls)    (REST API)      (storage)
                                             ↑
                                        Dashboard
                                       (React SPA)
 ```
 
-- **MCP endpoint** (`/mcp`) — handles writes via JSON-RPC tool calls (initialize-session, heartbeat, complete-session, set-task, add-log, get-session). Requires Entra ID bearer token.
-- **REST API** (`/api/*`) — handles reads (list sessions, tasks, logs, health check)
+- **REST API** (`/api/*`) — handles all reads and writes (sessions, tasks, logs, health). Requires Entra ID bearer token.
 - **Dashboard** — React/Vite SPA served from the same App Service, authenticates via MSAL redirect flow
-- **PowerShell module** — bridges the Copilot CLI to the server. Handles Entra token acquisition via `az account get-access-token` and wraps JSON-RPC calls. **The CLI cannot call the MCP endpoint directly** because it requires Entra bearer auth that the CLI's built-in MCP support doesn't handle.
+- **PowerShell module** — bridges the Copilot CLI to the server. Handles Entra token acquisition via `az account get-access-token` and calls the REST API.
 
 ## Quick Start
 
@@ -69,30 +68,20 @@ Access at: **https://copilot-tracker.azurewebsites.net**
 
 Authenticates via Microsoft Entra ID (MSAL redirect flow). Shows active/completed/stale sessions, tasks, and real-time health metrics.
 
-## MCP Tools (server-side)
-
-These tools are exposed on the `/mcp` endpoint. The PowerShell module wraps them
-with authentication. They are **not directly callable** by the Copilot CLI because
-the endpoint requires Entra bearer tokens.
-
-| Tool | Description |
-|------|-------------|
-| `initialize-session` | Register a new session |
-| `heartbeat` | Update session heartbeat |
-| `complete-session` | Mark session completed |
-| `get-session` | Get session details |
-| `set-task` | Create or update a task |
-| `add-log` | Add a log entry to a task |
-
 ## REST API Endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/sessions` | Bearer | List sessions (query: machineId, status, since) |
 | GET | `/api/sessions/{machineId}/{id}` | Bearer | Get a specific session |
+| POST | `/api/sessions` | Bearer | Initialize a new session |
+| POST | `/api/sessions/{machineId}/{id}/heartbeat` | Bearer | Update session heartbeat |
+| POST | `/api/sessions/{machineId}/{id}/complete` | Bearer | Mark session completed |
 | GET | `/api/tasks` | Bearer | List tasks (query: queueName, status) |
 | GET | `/api/tasks/{queueName}/{id}` | Bearer | Get a specific task |
+| POST | `/api/tasks` | Bearer | Create or update a task |
 | GET | `/api/tasks/{queueName}/{id}/logs` | Bearer | Get task logs |
+| POST | `/api/tasks/{queueName}/{id}/logs` | Bearer | Add a log entry |
 | GET | `/api/health` | None | Health check |
 
 ## PowerShell Module
@@ -111,7 +100,7 @@ the endpoint requires Entra bearer tokens.
 
 ```
 src/
-  CopilotTracker.Server/     .NET web server (MCP + REST + SPA host)
+  CopilotTracker.Server/     .NET web server (REST API + SPA host)
   CopilotTracker.Core/       Domain models, services, interfaces
   CopilotTracker.Cosmos/     Cosmos DB repository implementations
 dashboard/                   React/Vite SPA

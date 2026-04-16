@@ -11,9 +11,6 @@ builder.Services.AddCoreServices();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddBackgroundServices();
-builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithToolsFromAssembly();
 
 builder.Services.AddProblemDetails();
 
@@ -28,9 +25,8 @@ app.UseAuthorization();
 app.UseStaticFiles();
 
 app.MapControllers();
-app.MapMcp("/mcp").RequireAuthorization();
 
-// SPA fallback — exclude API and MCP routes so bad paths return 404, not HTML
+// SPA fallback — exclude API routes so bad paths return 404, not HTML
 app.MapFallbackToFile("{**path:nonfile}", "index.html")
     .Add(endpointBuilder =>
     {
@@ -38,8 +34,7 @@ app.MapFallbackToFile("{**path:nonfile}", "index.html")
         endpointBuilder.RequestDelegate = context =>
         {
             var path = context.Request.Path.Value ?? "";
-            if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWith("/mcp", StringComparison.OrdinalIgnoreCase))
+            if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
             {
                 context.Response.StatusCode = 404;
                 return Task.CompletedTask;
