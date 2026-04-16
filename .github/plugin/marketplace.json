@@ -1,17 +1,14 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "copilot-tracker-marketplace",
+  "description": "Copilot Session Tracker — track CLI sessions, tasks, and progress in real time",
   "owner": {
-    "name": "aef123",
-    "email": "aef123@gmail.com"
-  },
-  "metadata": {
-    "description": "Copilot Session Tracker — track CLI sessions, tasks, and progress in real time",
-    "version": "2.0.0"
+    "name": "aef123"
   },
   "plugins": [
     {
       "name": "copilot-session-tracker",
-      "source": "plugins/copilot-session-tracker",
+      "source": "./plugins/copilot-session-tracker",
       "version": "2.0.0",
       "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Requires a deployed tracker server.",
       "author": {
@@ -21,9 +18,9 @@
         "session-tracking",
         "azure",
         "dashboard",
-        "mcp",
         "telemetry"
-      ]
+      ],
+      "category": "tooling"
     }
   ]
 }
