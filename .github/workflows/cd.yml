@@ -68,6 +68,16 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      # Deploy infrastructure (Bicep) - creates/updates Cosmos containers etc.
+      - name: Deploy Infrastructure
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: rg-copilot-tracker
+          template: ./deploy/main.bicep
+          parameters: ./deploy/main.bicepparam
+          failOnStdErr: false
+
       # Deploy to App Service
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
