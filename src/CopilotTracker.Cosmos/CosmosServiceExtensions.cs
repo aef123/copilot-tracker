@@ -39,6 +39,8 @@ public static class CosmosServiceExtensions
         services.AddSingleton<ISessionRepository, CosmosSessionRepository>();
         services.AddSingleton<ITaskRepository, CosmosTaskRepository>();
         services.AddSingleton<ITaskLogRepository, CosmosTaskLogRepository>();
+        services.AddSingleton<IPromptRepository, CosmosPromptRepository>();
+        services.AddSingleton<IPromptLogRepository, CosmosPromptLogRepository>();
 
         return services;
     }

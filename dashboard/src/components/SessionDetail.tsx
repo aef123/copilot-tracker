@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { getSession, listTasks } from "../api";
-import type { Session, TrackerTask } from "../api";
+import { getSession, listPrompts } from "../api";
+import type { Session, Prompt } from "../api";
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
@@ -15,7 +15,7 @@ export function SessionDetail() {
   const { machineId, id } = useParams<{ machineId: string; id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
-  const [tasks, setTasks] = useState<TrackerTask[]>([]);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,13 +24,12 @@ export function SessionDetail() {
 
     async function load() {
       try {
-        const [sessionData, tasksData] = await Promise.all([
+        const [sessionData, promptsData] = await Promise.all([
           getSession(machineId!, id!),
-          listTasks({ queueName: undefined }),
+          listPrompts({ sessionId: id }),
         ]);
         setSession(sessionData);
-        // Filter tasks for this session client-side
-        setTasks(tasksData.items.filter((t) => t.sessionId === id));
+        setPrompts(promptsData.items);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load session");
@@ -82,9 +81,9 @@ export function SessionDetail() {
       </div>
 
       <div className="detail-card">
-        <h2>Tasks ({tasks.length})</h2>
-        {tasks.length === 0 ? (
-          <div className="empty-state">No tasks for this session.</div>
+        <h2>Prompts ({prompts.length})</h2>
+        {prompts.length === 0 ? (
+          <div className="empty-state">No prompts for this session.</div>
         ) : (
           <table className="data-table">
             <thead>
@@ -97,20 +96,20 @@ export function SessionDetail() {
               </tr>
             </thead>
             <tbody>
-              {tasks.map((t) => (
+              {prompts.map((p) => (
                 <tr
-                  key={`${t.queueName}-${t.id}`}
+                  key={p.id}
                   onClick={() =>
-                    navigate(`/tasks/${encodeURIComponent(t.queueName)}/${encodeURIComponent(t.id)}`)
+                    navigate(`/prompts/${encodeURIComponent(p.sessionId)}/${encodeURIComponent(p.id)}`)
                   }
                 >
                   <td>
-                    <StatusBadge status={t.status} />
+                    <StatusBadge status={p.status} />
                   </td>
-                  <td>{t.title}</td>
-                  <td>{t.source}</td>
-                  <td>{formatDate(t.createdAt)}</td>
-                  <td>{t.result || t.errorMessage || "-"}</td>
+                  <td>{p.title}</td>
+                  <td>{p.source}</td>
+                  <td>{formatDate(p.createdAt)}</td>
+                  <td>{p.result || p.errorMessage || "-"}</td>
                 </tr>
               ))}
             </tbody>

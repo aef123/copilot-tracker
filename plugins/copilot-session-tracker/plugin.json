@@ -1,10 +1,10 @@
 {
   "name": "copilot-session-tracker",
-  "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Includes bootstrap and initialize-machine skills.",
-  "version": "2.0.0",
+  "description": "Track Copilot CLI sessions via hooks-based automatic tracking with certificate or user auth, real-time dashboard, and task reporting.",
+  "version": "3.0.0",
   "author": {
     "name": "aef123"
   },
-  "keywords": ["session-tracking", "azure", "dashboard", "rest-api", "telemetry"],
+  "keywords": ["session-tracking", "azure", "dashboard", "rest-api", "telemetry", "hooks"],
   "skills": "skills/"
 }

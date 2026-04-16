@@ -28,6 +28,8 @@ describe("HealthDashboard", () => {
       staleSessions: 1,
       totalTasks: 42,
       activeTasks: 5,
+      totalPrompts: 30,
+      activePrompts: 4,
       timestamp: "2025-01-15T10:00:00Z",
     };
     mockGetHealth.mockResolvedValue(health);
@@ -39,6 +41,8 @@ describe("HealthDashboard", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Active Sessions")).toBeInTheDocument();
   });
 
@@ -74,13 +78,15 @@ describe("HealthDashboard", () => {
     expect(await screen.findByText(/Last updated:/)).toBeInTheDocument();
   });
 
-  it("renders all five health cards", async () => {
+  it("renders all health cards", async () => {
     const health: HealthSummary = {
       activeSessions: 1,
       completedSessions: 2,
       staleSessions: 3,
       totalTasks: 4,
       activeTasks: 5,
+      totalPrompts: 6,
+      activePrompts: 7,
       timestamp: "2025-01-15T10:00:00Z",
     };
     mockGetHealth.mockResolvedValue(health);
@@ -90,6 +96,8 @@ describe("HealthDashboard", () => {
     expect(await screen.findByText("Active Sessions")).toBeInTheDocument();
     expect(screen.getByText("Completed Sessions")).toBeInTheDocument();
     expect(screen.getByText("Stale Sessions")).toBeInTheDocument();
+    expect(screen.getByText("Total Prompts")).toBeInTheDocument();
+    expect(screen.getByText("Active Prompts")).toBeInTheDocument();
     expect(screen.getByText("Total Tasks")).toBeInTheDocument();
     expect(screen.getByText("Active Tasks")).toBeInTheDocument();
   });

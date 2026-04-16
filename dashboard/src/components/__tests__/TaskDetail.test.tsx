@@ -40,14 +40,14 @@ const baseTask: TrackerTask = {
 const baseLogs: TaskLog[] = [
   {
     id: "log-1",
-    taskId: "task-1",
+    promptId: "task-1",
     logType: "progress",
     message: "Starting build",
     timestamp: "2025-01-15T10:00:10Z",
   },
   {
     id: "log-2",
-    taskId: "task-1",
+    promptId: "task-1",
     logType: "status_change",
     message: "Build complete",
     timestamp: "2025-01-15T10:01:00Z",
@@ -179,21 +179,21 @@ describe("TaskDetail", () => {
     const unorderedLogs: TaskLog[] = [
       {
         id: "log-3",
-        taskId: "task-1",
+        promptId: "task-1",
         logType: "progress",
         message: "Third entry",
         timestamp: "2025-01-15T10:02:00Z",
       },
       {
         id: "log-1",
-        taskId: "task-1",
+        promptId: "task-1",
         logType: "status_change",
         message: "First entry",
         timestamp: "2025-01-15T10:00:00Z",
       },
       {
         id: "log-2",
-        taskId: "task-1",
+        promptId: "task-1",
         logType: "progress",
         message: "Second entry",
         timestamp: "2025-01-15T10:01:00Z",
@@ -222,8 +222,8 @@ describe("TaskDetail", () => {
     mockGetTask.mockResolvedValue(baseTask);
     mockGetTaskLogs.mockResolvedValue({
       items: [
-        { id: "l1", taskId: "task-1", logType: "progress", message: "Msg1", timestamp: "2025-01-15T10:00:00Z" },
-        { id: "l2", taskId: "task-1", logType: "error", message: "Msg2", timestamp: "2025-01-15T10:01:00Z" },
+        { id: "l1", promptId: "task-1", logType: "progress", message: "Msg1", timestamp: "2025-01-15T10:00:00Z" },
+        { id: "l2", promptId: "task-1", logType: "error", message: "Msg2", timestamp: "2025-01-15T10:01:00Z" },
       ],
       hasMore: false,
     });
@@ -237,7 +237,7 @@ describe("TaskDetail", () => {
   it("displays correct log count", async () => {
     const manyLogs: TaskLog[] = Array.from({ length: 5 }, (_, i) => ({
       id: `log-${i}`,
-      taskId: "task-1",
+      promptId: "task-1",
       logType: "progress" as const,
       message: `Log message ${i}`,
       timestamp: `2025-01-15T10:0${i}:00Z`,

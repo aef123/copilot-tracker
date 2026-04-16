@@ -8,7 +8,7 @@ using CopilotTracker.Server.Models.Requests;
 
 [ApiController]
 [Route("api/tasks")]
-[Authorize]
+[Authorize(Policy = "TrackerAccess")]
 public class TasksController : ControllerBase
 {
     private readonly TaskService _taskService;

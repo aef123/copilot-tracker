@@ -10,14 +10,15 @@ public class HealthServiceTests
 {
     private readonly Mock<ISessionRepository> _sessionRepo = new();
     private readonly Mock<ITaskRepository> _taskRepo = new();
+    private readonly Mock<IPromptRepository> _promptRepo = new();
     private readonly HealthService _sut;
 
     public HealthServiceTests()
     {
-        _sut = new HealthService(_sessionRepo.Object, _taskRepo.Object);
+        _sut = new HealthService(_sessionRepo.Object, _taskRepo.Object, _promptRepo.Object);
     }
 
-    private void SetupCounts(int active, int completed, int stale, int totalTasks, int activeTasks)
+    private void SetupCounts(int active, int completed, int stale, int totalTasks, int activeTasks, int totalPrompts = 0, int activePrompts = 0)
     {
         _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, 50))
             .ReturnsAsync(new PagedResult<Session>
@@ -49,9 +50,21 @@ public class HealthServiceTests
                 Items = Enumerable.Range(0, activeTasks).Select(_ => new TrackerTask()).ToList(),
                 ContinuationToken = null
             });
+        _promptRepo.Setup(r => r.ListAsync(null, null, null, null, 50))
+            .ReturnsAsync(new PagedResult<Prompt>
+            {
+                Items = Enumerable.Range(0, totalPrompts).Select(_ => new Prompt()).ToList(),
+                ContinuationToken = null
+            });
+        _promptRepo.Setup(r => r.ListAsync(null, "started", null, null, 50))
+            .ReturnsAsync(new PagedResult<Prompt>
+            {
+                Items = Enumerable.Range(0, activePrompts).Select(_ => new Prompt()).ToList(),
+                ContinuationToken = null
+            });
     }
 
-    private void SetupProbes(int activeSessions, int completedSessions, int staleSessions, int totalTasks, int activeTasks)
+    private void SetupProbes(int activeSessions, int completedSessions, int staleSessions, int totalTasks, int activeTasks, int totalPrompts = 0, int activePrompts = 0)
     {
         // HealthService first calls ListAsync with pageSize:1 as a probe before counting
         _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, 1))
@@ -82,6 +95,18 @@ public class HealthServiceTests
             .ReturnsAsync(new PagedResult<TrackerTask>
             {
                 Items = activeTasks > 0 ? [new TrackerTask()] : [],
+                ContinuationToken = null
+            });
+        _promptRepo.Setup(r => r.ListAsync(null, null, null, null, 1))
+            .ReturnsAsync(new PagedResult<Prompt>
+            {
+                Items = totalPrompts > 0 ? [new Prompt()] : [],
+                ContinuationToken = null
+            });
+        _promptRepo.Setup(r => r.ListAsync(null, "started", null, null, 1))
+            .ReturnsAsync(new PagedResult<Prompt>
+            {
+                Items = activePrompts > 0 ? [new Prompt()] : [],
                 ContinuationToken = null
             });
     }
@@ -207,6 +232,10 @@ public class HealthServiceTests
             .ReturnsAsync(new PagedResult<TrackerTask> { Items = [], ContinuationToken = null });
         _taskRepo.Setup(r => r.ListAsync(null, Models.TaskStatus.Started, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<TrackerTask> { Items = [], ContinuationToken = null });
+        _promptRepo.Setup(r => r.ListAsync(null, null, null, null, It.IsAny<int>()))
+            .ReturnsAsync(new PagedResult<Prompt> { Items = [], ContinuationToken = null });
+        _promptRepo.Setup(r => r.ListAsync(null, "started", null, null, It.IsAny<int>()))
+            .ReturnsAsync(new PagedResult<Prompt> { Items = [], ContinuationToken = null });
 
         var tasks = Enumerable.Range(0, 10).Select(_ => _sut.GetHealthAsync()).ToArray();
         var results = await Task.WhenAll(tasks);
@@ -229,6 +258,7 @@ public class HealthServiceTests
         // Must cover both pageSize:1 (probe) and pageSize:50 (count) calls.
         _sessionRepo.Reset();
         _taskRepo.Reset();
+        _promptRepo.Reset();
         SetupCounts(active: 2, completed: 0, stale: 0, totalTasks: 0, activeTasks: 0);
         SetupProbes(activeSessions: 2, completedSessions: 0, staleSessions: 0, totalTasks: 0, activeTasks: 0);
 

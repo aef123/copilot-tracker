@@ -71,12 +71,38 @@ public class TrackerWebApplicationFactory : WebApplicationFactory<Program>
                 .Setup(r => r.GetByTaskPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()))
                 .ReturnsAsync(new PagedResult<TaskLog> { Items = [] });
 
+            var mockPromptRepo = new Mock<IPromptRepository>();
+            mockPromptRepo
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ReturnsAsync(new PagedResult<Prompt> { Items = [] });
+            mockPromptRepo
+                .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((Prompt?)null);
+            mockPromptRepo
+                .Setup(r => r.GetActiveBySessionAsync(It.IsAny<string>()))
+                .ReturnsAsync((Prompt?)null);
+            mockPromptRepo
+                .Setup(r => r.GetBySessionAsync(It.IsAny<string>()))
+                .ReturnsAsync(Array.Empty<Prompt>());
+            mockPromptRepo
+                .Setup(r => r.CountByStatusAsync(It.IsAny<string?>()))
+                .ReturnsAsync(0);
+
+            var mockPromptLogRepo = new Mock<IPromptLogRepository>();
+            mockPromptLogRepo
+                .Setup(r => r.GetByPromptPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ReturnsAsync(new PagedResult<PromptLog> { Items = [] });
+
             services.RemoveAll<ISessionRepository>();
             services.RemoveAll<ITaskRepository>();
             services.RemoveAll<ITaskLogRepository>();
+            services.RemoveAll<IPromptRepository>();
+            services.RemoveAll<IPromptLogRepository>();
             services.AddSingleton(mockSessionRepo.Object);
             services.AddSingleton(mockTaskRepo.Object);
             services.AddSingleton(mockTaskLogRepo.Object);
+            services.AddSingleton(mockPromptRepo.Object);
+            services.AddSingleton(mockPromptLogRepo.Object);
 
             // Replace auth with a test scheme
             services.AddAuthentication("Test")
@@ -108,6 +134,8 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         {
             new Claim(ClaimTypes.NameIdentifier, "test-user"),
             new Claim(ClaimTypes.Name, "Test User"),
+            new Claim("oid", "test-oid-123"),
+            new Claim("scp", "CopilotTracker.ReadWrite"),
         };
         var identity = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);
@@ -296,12 +324,35 @@ public class FaultyWebApplicationFactory : WebApplicationFactory<Program>
                 .Setup(r => r.GetByTaskPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()))
                 .ThrowsAsync(new InvalidOperationException("Simulated task log repo failure"));
 
+            var mockPromptRepo = new Mock<IPromptRepository>();
+            mockPromptRepo
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated prompt repo failure"));
+            mockPromptRepo
+                .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated prompt repo failure"));
+            mockPromptRepo
+                .Setup(r => r.GetActiveBySessionAsync(It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated prompt repo failure"));
+            mockPromptRepo
+                .Setup(r => r.CountByStatusAsync(It.IsAny<string?>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated prompt repo failure"));
+
+            var mockPromptLogRepo = new Mock<IPromptLogRepository>();
+            mockPromptLogRepo
+                .Setup(r => r.GetByPromptPagedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .ThrowsAsync(new InvalidOperationException("Simulated prompt log repo failure"));
+
             services.RemoveAll<ISessionRepository>();
             services.RemoveAll<ITaskRepository>();
             services.RemoveAll<ITaskLogRepository>();
+            services.RemoveAll<IPromptRepository>();
+            services.RemoveAll<IPromptLogRepository>();
             services.AddSingleton(mockSessionRepo.Object);
             services.AddSingleton(mockTaskRepo.Object);
             services.AddSingleton(mockTaskLogRepo.Object);
+            services.AddSingleton(mockPromptRepo.Object);
+            services.AddSingleton(mockPromptLogRepo.Object);
 
             services.AddAuthentication("Test")
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });

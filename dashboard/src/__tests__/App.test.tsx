@@ -32,6 +32,8 @@ vi.mock("../api", () => ({
     staleSessions: 0,
     totalTasks: 5,
     activeTasks: 1,
+    totalPrompts: 8,
+    activePrompts: 2,
     timestamp: "2025-01-15T10:00:00Z",
   }),
   listSessions: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
@@ -48,6 +50,7 @@ vi.mock("../api", () => ({
     createdBy: "copilot",
   }),
   listTasks: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
+  listPrompts: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
   getTask: vi.fn().mockResolvedValue({
     id: "task-1",
     sessionId: "sess-1",
@@ -62,6 +65,20 @@ vi.mock("../api", () => ({
     createdBy: "copilot",
   }),
   getTaskLogs: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
+  getPrompt: vi.fn().mockResolvedValue({
+    id: "prompt-1",
+    sessionId: "sess-1",
+    queueName: "default",
+    title: "Implement feature",
+    status: "done",
+    result: "Feature complete",
+    source: "prompt",
+    createdAt: "2025-01-15T10:00:00Z",
+    updatedAt: "2025-01-15T10:01:00Z",
+    userId: "user-1",
+    createdBy: "copilot",
+  }),
+  getPromptLogs: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
 }));
 
 // Replace BrowserRouter with MemoryRouter so we can control the initial URL

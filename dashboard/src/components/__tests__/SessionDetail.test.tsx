@@ -2,16 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SessionDetail } from "../SessionDetail";
-import type { Session, TrackerTask } from "../../api";
+import type { Session, Prompt } from "../../api";
 
 vi.mock("../../api", () => ({
   getSession: vi.fn(),
-  listTasks: vi.fn(),
+  listPrompts: vi.fn(),
 }));
 
-import { getSession, listTasks } from "../../api";
+import { getSession, listPrompts } from "../../api";
 const mockGetSession = vi.mocked(getSession);
-const mockListTasks = vi.mocked(listTasks);
+const mockListPrompts = vi.mocked(listPrompts);
 
 function renderSessionDetail(machineId = "machine-1", id = "sess-1") {
   return render(
@@ -36,7 +36,7 @@ const baseSession: Session = {
   createdBy: "copilot",
 };
 
-const baseTask: TrackerTask = {
+const basePrompt: Prompt = {
   id: "task-1",
   sessionId: "sess-1",
   queueName: "default",
@@ -57,7 +57,7 @@ describe("SessionDetail", () => {
 
   it("shows loading state initially", () => {
     mockGetSession.mockReturnValue(new Promise(() => {}));
-    mockListTasks.mockReturnValue(new Promise(() => {}));
+    mockListPrompts.mockReturnValue(new Promise(() => {}));
 
     renderSessionDetail();
     expect(screen.getByText("Loading session...")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("SessionDetail", () => {
 
   it("renders session details when data loads", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
 
     renderSessionDetail();
 
@@ -79,7 +79,7 @@ describe("SessionDetail", () => {
 
   it("renders error state on API failure", async () => {
     mockGetSession.mockRejectedValue(new Error("Network timeout"));
-    mockListTasks.mockRejectedValue(new Error("Network timeout"));
+    mockListPrompts.mockRejectedValue(new Error("Network timeout"));
 
     renderSessionDetail();
 
@@ -88,20 +88,20 @@ describe("SessionDetail", () => {
 
   it("shows empty task state when session has no tasks", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
 
     renderSessionDetail();
 
-    expect(await screen.findByText("No tasks for this session.")).toBeInTheDocument();
-    expect(screen.getByText("Tasks (0)")).toBeInTheDocument();
+    expect(await screen.findByText("No prompts for this session.")).toBeInTheDocument();
+    expect(screen.getByText("Prompts (0)")).toBeInTheDocument();
   });
 
-  it("renders tasks that belong to this session", async () => {
+  it("renders prompts returned by the API", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({
+    mockListPrompts.mockResolvedValue({
       items: [
-        baseTask,
-        { ...baseTask, id: "task-other", sessionId: "other-session", title: "Other task" },
+        basePrompt,
+        { ...basePrompt, id: "task-2", title: "Deploy app" },
       ],
       hasMore: false,
     });
@@ -109,13 +109,13 @@ describe("SessionDetail", () => {
     renderSessionDetail();
 
     expect(await screen.findByText("Run tests")).toBeInTheDocument();
-    expect(screen.queryByText("Other task")).not.toBeInTheDocument();
-    expect(screen.getByText("Tasks (1)")).toBeInTheDocument();
+    expect(screen.getByText("Deploy app")).toBeInTheDocument();
+    expect(screen.getByText("Prompts (2)")).toBeInTheDocument();
   });
 
   it("displays task result in the table", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [baseTask], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
 
     renderSessionDetail();
 
@@ -123,14 +123,14 @@ describe("SessionDetail", () => {
   });
 
   it("displays task error message for failed tasks", async () => {
-    const failedTask: TrackerTask = {
-      ...baseTask,
+    const failedPrompt: Prompt = {
+      ...basePrompt,
       status: "failed",
       result: undefined,
       errorMessage: "Compilation error",
     };
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [failedTask], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [failedPrompt], hasMore: false });
 
     renderSessionDetail();
 
@@ -139,7 +139,7 @@ describe("SessionDetail", () => {
 
   it("renders back link to sessions", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
 
     renderSessionDetail();
 
@@ -150,7 +150,7 @@ describe("SessionDetail", () => {
 
   it("shows session summary when present", async () => {
     mockGetSession.mockResolvedValue({ ...baseSession, summary: "Refactored auth module" });
-    mockListTasks.mockResolvedValue({ items: [], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
 
     renderSessionDetail();
 
@@ -165,7 +165,7 @@ describe("SessionDetail", () => {
       completedAt: undefined,
     };
     mockGetSession.mockResolvedValue(sessionNoOptionals);
-    mockListTasks.mockResolvedValue({ items: [], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
 
     renderSessionDetail();
 
@@ -176,35 +176,29 @@ describe("SessionDetail", () => {
 
   it("handles non-Error thrown from API", async () => {
     mockGetSession.mockRejectedValue("string error");
-    mockListTasks.mockRejectedValue("string error");
+    mockListPrompts.mockRejectedValue("string error");
 
     renderSessionDetail();
 
     expect(await screen.findByText("Failed to load session")).toBeInTheDocument();
   });
 
-  it("filters tasks client-side to only this session's tasks", async () => {
-    const tasksFromMultipleSessions: TrackerTask[] = [
-      { ...baseTask, id: "task-1", sessionId: "sess-1", title: "My task" },
-      { ...baseTask, id: "task-2", sessionId: "other-sess", title: "Other session task" },
-      { ...baseTask, id: "task-3", sessionId: "sess-1", title: "Another my task" },
-      { ...baseTask, id: "task-4", sessionId: "different-sess", title: "Third session task" },
-    ];
+  it("calls listPrompts with the session id for server-side filtering", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: tasksFromMultipleSessions, hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
 
     renderSessionDetail();
 
-    expect(await screen.findByText("My task")).toBeInTheDocument();
-    expect(screen.getByText("Another my task")).toBeInTheDocument();
-    expect(screen.queryByText("Other session task")).not.toBeInTheDocument();
-    expect(screen.queryByText("Third session task")).not.toBeInTheDocument();
-    expect(screen.getByText("Tasks (2)")).toBeInTheDocument();
+    await screen.findByText("Run tests");
+
+    // Import and check that listPrompts was called with sessionId
+    const { listPrompts: actualListPrompts } = await import("../../api");
+    expect(vi.mocked(actualListPrompts)).toHaveBeenCalledWith({ sessionId: "sess-1" });
   });
 
   it("displays all task table columns", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [baseTask], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
 
     renderSessionDetail();
 
@@ -218,13 +212,13 @@ describe("SessionDetail", () => {
   });
 
   it("shows dash for task result/error when both absent", async () => {
-    const noResultTask: TrackerTask = {
-      ...baseTask,
+    const noResultPrompt: Prompt = {
+      ...basePrompt,
       result: undefined,
       errorMessage: undefined,
     };
     mockGetSession.mockResolvedValue(baseSession);
-    mockListTasks.mockResolvedValue({ items: [noResultTask], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [noResultPrompt], hasMore: false });
 
     renderSessionDetail();
 

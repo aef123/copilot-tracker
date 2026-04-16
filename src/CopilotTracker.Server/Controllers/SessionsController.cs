@@ -8,7 +8,7 @@ using CopilotTracker.Server.Models.Requests;
 
 [ApiController]
 [Route("api/sessions")]
-[Authorize]
+[Authorize(Policy = "TrackerAccess")]
 public class SessionsController : ControllerBase
 {
     private readonly SessionService _sessionService;

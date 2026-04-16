@@ -85,6 +85,69 @@ public class SessionService
         return await _sessions.ListAsync(machineId, status, since, continuationToken, pageSize);
     }
 
+    public virtual async Task<Session> InitializeFromHookAsync(
+        string hookSessionId, string machineName, string? repository, string? branch,
+        string source, string? initialPrompt, string userId, string createdBy)
+    {
+        // For "resume" or "startup": check if session already exists
+        if (source == "resume" || source == "startup")
+        {
+            var existing = await _sessions.GetAsync(hookSessionId, machineName);
+            if (existing != null)
+            {
+                existing.Status = SessionStatus.Active;
+                existing.LastHeartbeat = DateTime.UtcNow;
+                existing.UpdatedAt = DateTime.UtcNow;
+                await _sessions.UpdateAsync(existing);
+                return existing;
+            }
+        }
+
+        // For "new" or if session not found: stale any existing active sessions for this machine
+        var activeSessions = await _sessions.GetActiveByMachineAsync(machineName);
+        foreach (var active in activeSessions)
+        {
+            active.Status = SessionStatus.Stale;
+            active.UpdatedAt = DateTime.UtcNow;
+            await _sessions.UpdateAsync(active);
+        }
+
+        var session = new Session
+        {
+            Id = hookSessionId,
+            MachineId = machineName,
+            Repository = repository,
+            Branch = branch,
+            Status = SessionStatus.Active,
+            UserId = userId,
+            CreatedBy = createdBy,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            LastHeartbeat = DateTime.UtcNow
+        };
+
+        await _sessions.CreateAsync(session);
+        return session;
+    }
+
+    public virtual async Task TouchSessionAsync(string sessionId, string machineId)
+    {
+        try
+        {
+            var session = await _sessions.GetAsync(sessionId, machineId);
+            if (session != null && session.Status == SessionStatus.Active)
+            {
+                session.LastHeartbeat = DateTime.UtcNow;
+                session.UpdatedAt = DateTime.UtcNow;
+                await _sessions.UpdateAsync(session);
+            }
+        }
+        catch (Exception)
+        {
+            // Best-effort heartbeat
+        }
+    }
+
     public async Task<int> CleanupStaleSessionsAsync(TimeSpan staleThreshold)
     {
         var cutoff = DateTime.UtcNow - staleThreshold;

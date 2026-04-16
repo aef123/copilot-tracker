@@ -7,5 +7,7 @@ public class HealthSummary
     public int StaleSessions { get; set; }
     public int TotalTasks { get; set; }
     public int ActiveTasks { get; set; }
+    public int TotalPrompts { get; set; }
+    public int ActivePrompts { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }

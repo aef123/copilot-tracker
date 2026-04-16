@@ -7,16 +7,18 @@ public class HealthService
 {
     private readonly ISessionRepository _sessions;
     private readonly ITaskRepository _tasks;
+    private readonly IPromptRepository _prompts;
 
     private HealthSummary? _cached;
     private DateTime _cachedAt = DateTime.MinValue;
     private readonly TimeSpan _cacheTtl = TimeSpan.FromSeconds(30);
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public HealthService(ISessionRepository sessions, ITaskRepository tasks)
+    public HealthService(ISessionRepository sessions, ITaskRepository tasks, IPromptRepository prompts)
     {
         _sessions = sessions;
         _tasks = tasks;
+        _prompts = prompts;
     }
 
     public virtual async Task<HealthSummary> GetHealthAsync()
@@ -49,6 +51,11 @@ public class HealthService
             int activeTasks = await CountAllTasksAsync(
                 token => _tasks.ListAsync(status: Models.TaskStatus.Started, continuationToken: token));
 
+            int totalPrompts = await CountAllPromptsAsync(
+                token => _prompts.ListAsync(continuationToken: token));
+            int activePrompts = await CountAllPromptsAsync(
+                token => _prompts.ListAsync(status: "started", continuationToken: token));
+
             _cached = new HealthSummary
             {
                 ActiveSessions = activeSessions,
@@ -56,6 +63,8 @@ public class HealthService
                 StaleSessions = staleSessions,
                 TotalTasks = totalTasks,
                 ActiveTasks = activeTasks,
+                TotalPrompts = totalPrompts,
+                ActivePrompts = activePrompts,
                 Timestamp = DateTime.UtcNow
             };
             _cachedAt = DateTime.UtcNow;
@@ -84,6 +93,20 @@ public class HealthService
 
     private static async Task<int> CountAllTasksAsync(
         Func<string?, Task<PagedResult<TrackerTask>>> query)
+    {
+        int count = 0;
+        string? token = null;
+        do
+        {
+            var page = await query(token);
+            count += page.Items.Count;
+            token = page.ContinuationToken;
+        } while (token != null);
+        return count;
+    }
+
+    private static async Task<int> CountAllPromptsAsync(
+        Func<string?, Task<PagedResult<Prompt>>> query)
     {
         int count = 0;
         string? token = null;

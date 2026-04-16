@@ -33,6 +33,8 @@ export function HealthDashboard() {
     { label: "Active Sessions", value: health.activeSessions },
     { label: "Completed Sessions", value: health.completedSessions },
     { label: "Stale Sessions", value: health.staleSessions },
+    { label: "Total Prompts", value: health.totalPrompts ?? health.totalTasks },
+    { label: "Active Prompts", value: health.activePrompts ?? health.activeTasks },
     { label: "Total Tasks", value: health.totalTasks },
     { label: "Active Tasks", value: health.activeTasks },
   ];

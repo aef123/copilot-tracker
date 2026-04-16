@@ -1,6 +1,10 @@
 import { apiGet } from "./apiClient";
 import type { TrackerTask, TaskLog, PagedResult } from "./types";
 
+// Re-export new prompt API for backward compatibility
+export { listPrompts, getPrompt, getPromptLogs } from "./promptsApi";
+export type { ListPromptsParams } from "./promptsApi";
+
 export interface ListTasksParams {
   queueName?: string;
   status?: string;

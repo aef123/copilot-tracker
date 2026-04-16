@@ -1,3 +1,6 @@
+# DEPRECATED: This module is replaced by hooks-based tracking (Invoke-TrackerHook.ps1).
+# Kept for backward compatibility during transition.
+
 [CmdletBinding()]
 param(
     [string]$WorkingDirectory = $PWD,

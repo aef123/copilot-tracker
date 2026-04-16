@@ -131,8 +131,36 @@ resource taskLogContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
   }
 }
 
+resource promptContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: cosmosDatabase
+  name: 'prompts'
+  properties: {
+    resource: {
+      id: 'prompts'
+      partitionKey: {
+        paths: ['/sessionId']
+        kind: 'Hash'
+      }
+    }
+  }
+}
+
+resource promptLogContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: cosmosDatabase
+  name: 'promptLogs'
+  properties: {
+    resource: {
+      id: 'promptLogs'
+      partitionKey: {
+        paths: ['/promptId']
+        kind: 'Hash'
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
-// 5. Cosmos DB RBAC – Data Contributor role for the UAMI
+// 5. Cosmos DB RBAC– Data Contributor role for the UAMI
 // ---------------------------------------------------------------------------
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
   parent: cosmosAccount

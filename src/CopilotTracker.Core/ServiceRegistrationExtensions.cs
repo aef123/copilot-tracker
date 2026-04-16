@@ -11,6 +11,8 @@ public static class ServiceRegistrationExtensions
         services.AddSingleton<TaskService>();
         services.AddSingleton<TaskLogService>();
         services.AddSingleton<HealthService>();
+        services.AddSingleton<PromptService>();
+        services.AddSingleton<PromptLogService>();
         return services;
     }
 }

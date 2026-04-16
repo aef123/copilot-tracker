@@ -13,28 +13,40 @@ export interface Session {
   createdBy: string;
 }
 
-export interface TrackerTask {
+export interface Prompt {
   id: string;
   sessionId: string;
   queueName: string;
   title: string;
+  promptText?: string;
+  cwd?: string;
   status: "started" | "done" | "failed";
   result?: string;
   errorMessage?: string;
   source: "prompt" | "queue";
   createdAt: string;
   updatedAt: string;
+  hookTimestamp?: string;
   userId: string;
   createdBy: string;
 }
 
-export interface TaskLog {
+/** @deprecated Use Prompt instead */
+export type TrackerTask = Prompt;
+
+export interface PromptLog {
   id: string;
-  taskId: string;
-  logType: "status_change" | "progress" | "output" | "error" | "heartbeat";
+  promptId: string;
+  logType: "status_change" | "progress" | "output" | "error" | "heartbeat" | "subagent_start" | "subagent_stop" | "notification" | "agent_stop";
   message: string;
   timestamp: string;
+  agentName?: string;
+  notificationType?: string;
+  hookTimestamp?: string;
 }
+
+/** @deprecated Use PromptLog instead */
+export type TaskLog = PromptLog;
 
 export interface PagedResult<T> {
   items: T[];
@@ -48,5 +60,7 @@ export interface HealthSummary {
   staleSessions: number;
   totalTasks: number;
   activeTasks: number;
+  totalPrompts?: number;
+  activePrompts?: number;
   timestamp: string;
 }

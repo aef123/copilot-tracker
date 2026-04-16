@@ -16,7 +16,8 @@ public class HealthControllerTests
     {
         _healthService = new Mock<HealthService>(
             Mock.Of<Core.Interfaces.ISessionRepository>(),
-            Mock.Of<Core.Interfaces.ITaskRepository>());
+            Mock.Of<Core.Interfaces.ITaskRepository>(),
+            Mock.Of<Core.Interfaces.IPromptRepository>());
 
         _controller = new HealthController(_healthService.Object);
     }
