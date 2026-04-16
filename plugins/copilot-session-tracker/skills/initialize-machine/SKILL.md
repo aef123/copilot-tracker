@@ -232,12 +232,13 @@ try {
 
 # Verify auth by testing token acquisition (non-destructive)
 try {
-    Initialize-TrackerConnection
-    $headers = Get-TrackerHeaders
-    if ($headers) {
+    $token = az account get-access-token --resource $resourceId --tenant $tenantId --query accessToken -o tsv 2>&1
+    if ($LASTEXITCODE -eq 0) {
         Write-Output "✅ Authentication working."
     } else {
         Write-Warning "⚠️  Could not acquire auth token. Run: az login --tenant $tenantId"
+        Write-Warning "   If you see a consent_required error, the Azure CLI (04b07795-8ddb-461a-bbee-02f9e1bf7b46)"
+        Write-Warning "   may need to be pre-authorized in the Entra app registration."
     }
 } catch {
     Write-Warning "⚠️  Auth verification failed: $_"
@@ -279,3 +280,4 @@ To test: start a new Copilot CLI session and check the dashboard.
 - **Idempotent.** Running multiple times is safe.
 - **Multi-tenant friendly.** Uses `--tenant` on `az account get-access-token` so your active subscription doesn't matter.
 - **Non-destructive verification.** Uses the anonymous `/api/health` endpoint, no test sessions created.
+- **Azure CLI pre-authorization required.** The Entra app registration must have the Azure CLI app ID (`04b07795-8ddb-461a-bbee-02f9e1bf7b46`) listed as a pre-authorized application. The deploy script (`deploy/scripts/setup-app-registration.ps1`) does this automatically. If you see a `consent_required` or `invalid_resource` error during token acquisition, this is the cause.

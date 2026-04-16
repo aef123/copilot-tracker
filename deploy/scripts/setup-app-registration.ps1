@@ -152,14 +152,20 @@ az rest --method PATCH `
 Remove-Item $tempFile -Force
 Write-Host "  Done. Scope ID: $scopeId" -ForegroundColor Green
 
-# Pre-authorize the app to consent to its own scope (for first-party clients)
-Write-Host "`nPre-authorizing app for its own scope..." -ForegroundColor Yellow
+# Pre-authorize the app and Azure CLI to consent to its scope
+Write-Host "`nPre-authorizing app and Azure CLI for scope..." -ForegroundColor Yellow
+
+$azureCliAppId = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
 $preAuthBody = @{
     api = @{
         preAuthorizedApplications = @(
             @{
                 appId                = $appId
+                delegatedPermissionIds = @($scopeId)
+            },
+            @{
+                appId                = $azureCliAppId
                 delegatedPermissionIds = @($scopeId)
             }
         )
