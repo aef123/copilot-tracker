@@ -104,13 +104,19 @@ try {
 }
 ```
 
-## Step 2: Create Directory and Install Files
+## Step 2: Clean and Install Files
 
-Find the module files relative to this plugin's installed location, then copy them to the user's machine.
+Remove any existing tracker scripts (from previous versions) and install fresh copies from the plugin.
 
 ```powershell
 $trackerDir = Join-Path $env:USERPROFILE ".copilot\copilot-tracker"
-if (-not (Test-Path $trackerDir)) {
+
+# Clean out any existing scripts from previous installs
+if (Test-Path $trackerDir) {
+    Get-ChildItem $trackerDir -Filter "*.ps1" | Remove-Item -Force
+    Get-ChildItem $trackerDir -Filter "*.psm1" | Remove-Item -Force
+    Write-Output "✅ Cleaned existing scripts from $trackerDir"
+} else {
     New-Item -ItemType Directory -Path $trackerDir -Force | Out-Null
 }
 
@@ -147,7 +153,7 @@ if (-not $sharedDir -or -not (Test-Path $sharedDir)) {
     }
 }
 
-# Copy module files
+# Install fresh copies
 Copy-Item -Path (Join-Path $sharedDir "CopilotTracker.psm1") -Destination $trackerDir -Force
 Copy-Item -Path (Join-Path $sharedDir "Start-TrackerSession.ps1") -Destination $trackerDir -Force
 Write-Output "✅ Module installed to $trackerDir"
