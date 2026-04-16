@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 
 namespace CopilotTracker.Server.Auth;
 
@@ -9,28 +9,30 @@ public static class EntraAuthExtensions
     {
         var clientId = configuration["AzureAd:ClientId"];
         var tenantId = configuration["AzureAd:TenantId"];
+        var instance = configuration["AzureAd:Instance"] ?? "https://login.microsoftonline.com/";
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(
-                jwtOptions =>
+            .AddJwtBearer(options =>
+            {
+                // Use v2.0 authority for key discovery (Microsoft signs both v1 and v2 with same keys)
+                options.Authority = $"{instance}{tenantId}/v2.0";
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // Accept both v1 and v2 audiences
-                    jwtOptions.TokenValidationParameters.ValidAudiences = new[]
-                    {
-                        clientId,
-                        $"api://{clientId}"
-                    };
-                    // Accept both v1 (sts.windows.net) and v2 (login.microsoftonline.com) issuers
-                    jwtOptions.TokenValidationParameters.ValidIssuers = new[]
+                    ValidateIssuer = true,
+                    ValidIssuers = new[]
                     {
                         $"https://login.microsoftonline.com/{tenantId}/v2.0",
                         $"https://sts.windows.net/{tenantId}/"
-                    };
-                },
-                identityOptions =>
-                {
-                    configuration.GetSection("AzureAd").Bind(identityOptions);
-                });
+                    },
+                    ValidateAudience = true,
+                    ValidAudiences = new[]
+                    {
+                        clientId,
+                        $"api://{clientId}"
+                    },
+                    ValidateLifetime = true,
+                };
+            });
 
         services.AddAuthorization(options =>
         {
