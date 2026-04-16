@@ -143,7 +143,7 @@ function Get-CertificateToken {
     
     # Sign
     $dataToSign = [System.Text.Encoding]::UTF8.GetBytes("$headerB64.$payloadB64")
-    $privateKey = $cert.GetRSAPrivateKey()
+    $privateKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
     $signature = $privateKey.SignData($dataToSign, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
     $signatureB64 = [Convert]::ToBase64String($signature).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     

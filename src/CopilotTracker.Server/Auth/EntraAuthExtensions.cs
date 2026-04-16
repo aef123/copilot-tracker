@@ -14,10 +14,18 @@ public static class EntraAuthExtensions
         {
             options.TokenValidationParameters.ValidateAudience = true;
             // Allow both v1 and v2 token formats
+            var clientId = configuration["AzureAd:ClientId"];
+            var tenantId = configuration["AzureAd:TenantId"];
             options.TokenValidationParameters.ValidAudiences = new[]
             {
-                configuration["AzureAd:ClientId"],
-                $"api://{configuration["AzureAd:ClientId"]}"
+                clientId,
+                $"api://{clientId}"
+            };
+            // Accept both v1 (sts.windows.net) and v2 (login.microsoftonline.com) issuers
+            options.TokenValidationParameters.ValidIssuers = new[]
+            {
+                $"https://login.microsoftonline.com/{tenantId}/v2.0",
+                $"https://sts.windows.net/{tenantId}/"
             };
         });
 
