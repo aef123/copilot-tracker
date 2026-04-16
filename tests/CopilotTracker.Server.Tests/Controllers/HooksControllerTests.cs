@@ -81,7 +81,7 @@ public class HooksControllerTests
     public async Task SessionEnd_CompletesSession_Returns200()
     {
         _sessionService
-            .Setup(s => s.CompleteSessionAsync("machine1", "s1", "user_exit"))
+            .Setup(s => s.CompleteSessionAsync("s1", "machine1", "user_exit"))
             .Returns(Task.FromResult(new Session { Id = "s1" }));
 
         var hook = new SessionEndHook
@@ -91,7 +91,7 @@ public class HooksControllerTests
         var result = await _controller.SessionEnd(hook);
 
         result.Should().BeOfType<OkResult>();
-        _sessionService.Verify(s => s.CompleteSessionAsync("machine1", "s1", "user_exit"), Times.Once);
+        _sessionService.Verify(s => s.CompleteSessionAsync("s1", "machine1", "user_exit"), Times.Once);
     }
 
     // --- UserPromptSubmitted ---

@@ -50,7 +50,7 @@ public class HooksController : ControllerBase
     public async Task<IActionResult> SessionEnd([FromBody] SessionEndHook hook)
     {
         var machineId = hook.MachineName ?? Environment.MachineName;
-        await _sessionService.CompleteSessionAsync(machineId, hook.SessionId, hook.Reason);
+        await _sessionService.CompleteSessionAsync(hook.SessionId, machineId, hook.Reason);
         return Ok();
     }
 
