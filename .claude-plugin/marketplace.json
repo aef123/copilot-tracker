@@ -10,7 +10,7 @@
       "name": "copilot-session-tracker",
       "source": "./plugins/copilot-session-tracker",
       "version": "2.0.0",
-      "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Requires a deployed tracker server.",
+      "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Includes bootstrap (provision infrastructure) and initialize-machine (configure local machine) skills.",
       "author": {
         "name": "aef123"
       },

@@ -1,6 +1,6 @@
 {
   "name": "copilot-session-tracker",
-  "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Run 'initialize-machine' after installing.",
+  "description": "Track Copilot CLI sessions with automatic heartbeats, task reporting, and a real-time dashboard. Includes bootstrap and initialize-machine skills.",
   "version": "2.0.0",
   "author": {
     "name": "aef123"
