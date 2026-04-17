@@ -83,7 +83,7 @@ export function TaskDetail() {
           {task.errorMessage && (
             <div className="detail-field">
               <div className="label">Error</div>
-              <div className="value" style={{ color: "#dc2626" }}>
+              <div className="value" style={{ color: "var(--red)" }}>
                 {task.errorMessage}
               </div>
             </div>

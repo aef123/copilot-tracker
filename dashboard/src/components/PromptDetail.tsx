@@ -3,12 +3,32 @@ import { useParams, Link } from "react-router-dom";
 import { getPrompt, getPromptLogs } from "../api";
 import type { Prompt, PromptLog } from "../api";
 
+const PROMPT_PREVIEW_LENGTH = 200;
+
 function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
 function formatDate(iso?: string) {
   return iso ? new Date(iso).toLocaleString() : "-";
+}
+
+function PromptText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncation = text.length > PROMPT_PREVIEW_LENGTH;
+
+  return (
+    <div className="prompt-text-container">
+      <div className={`prompt-text-content ${expanded ? "expanded" : ""}`}>
+        {expanded || !needsTruncation ? text : text.slice(0, PROMPT_PREVIEW_LENGTH) + "..."}
+      </div>
+      {needsTruncation && (
+        <button className="prompt-text-toggle" onClick={() => setExpanded(!expanded)}>
+          {expanded ? "Show less" : `Show full prompt (${text.length} chars)`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function PromptDetail() {
@@ -49,7 +69,6 @@ export function PromptDetail() {
     { label: "Session ID", value: prompt.sessionId },
     { label: "Status", value: prompt.status, badge: true },
     { label: "Title", value: prompt.title },
-    ...(prompt.promptText ? [{ label: "Prompt Text", value: prompt.promptText }] : []),
     ...(prompt.cwd ? [{ label: "Working Directory", value: prompt.cwd }] : []),
     { label: "Source", value: prompt.source },
     { label: "Created", value: formatDate(prompt.createdAt) },
@@ -85,13 +104,20 @@ export function PromptDetail() {
           {prompt.errorMessage && (
             <div className="detail-field">
               <div className="label">Error</div>
-              <div className="value" style={{ color: "#dc2626" }}>
+              <div className="value" style={{ color: "var(--red)" }}>
                 {prompt.errorMessage}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {prompt.promptText && (
+        <div className="detail-card">
+          <h2>Prompt Text</h2>
+          <PromptText text={prompt.promptText} />
+        </div>
+      )}
 
       <div className="detail-card">
         <h2>Prompt Logs ({logs.length})</h2>
