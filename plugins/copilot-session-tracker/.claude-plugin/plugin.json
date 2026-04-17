@@ -1,7 +1,7 @@
 {
   "name": "copilot-session-tracker",
   "description": "Track Claude Code and Copilot CLI sessions via hooks-based automatic tracking with certificate or user auth, real-time dashboard, and analytics.",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "author": {
     "name": "aef123"
   }
