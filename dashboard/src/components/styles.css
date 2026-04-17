@@ -237,6 +237,27 @@
   color: var(--purple);
 }
 
+/* ========== Tool Badges ========== */
+.tool-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-badge.copilot {
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.tool-badge.claude {
+  color: var(--purple);
+  border: 1px solid var(--purple);
+}
+
 /* ========== Filters ========== */
 .filters {
   display: flex;

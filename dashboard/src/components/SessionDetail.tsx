@@ -9,6 +9,11 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
+function ToolBadge({ tool }: { tool?: string }) {
+  const name = tool || "copilot";
+  return <span className={`tool-badge ${name}`}>{name}</span>;
+}
+
 function formatDate(iso?: string) {
   return iso ? new Date(iso).toLocaleString() : "-";
 }
@@ -47,12 +52,13 @@ export function SessionDetail() {
   if (error) return <div className="error-message">{error}</div>;
   if (!session) return <div className="empty-state">Session not found.</div>;
 
-  const fields = [
+  const fields: { label: string; value: string; badge?: boolean; toolBadge?: boolean }[] = [
     { label: "Session ID", value: session.id },
     { label: "Machine ID", value: session.machineId },
     { label: "Status", value: session.status, badge: true },
     { label: "Repository", value: session.repository || "-" },
     { label: "Branch", value: session.branch || "-" },
+    { label: "Tool", value: session.tool || "copilot", toolBadge: true },
     { label: "Created", value: formatDate(session.createdAt) },
     { label: "Updated", value: formatDate(session.updatedAt) },
     { label: "Last Heartbeat", value: formatDate(session.lastHeartbeat) },
@@ -75,7 +81,7 @@ export function SessionDetail() {
             <div key={f.label} className="detail-field">
               <div className="label">{f.label}</div>
               <div className="value">
-                {f.badge ? <StatusBadge status={String(f.value)} /> : f.value}
+                {f.badge ? <StatusBadge status={String(f.value)} /> : f.toolBadge ? <ToolBadge tool={String(f.value)} /> : f.value}
               </div>
             </div>
           ))}

@@ -215,6 +215,7 @@ describe("SessionList", () => {
       await screen.findByText("No sessions found.");
       expect(mockListSessions).toHaveBeenCalledWith({
         status: undefined,
+        tool: undefined,
         machineId: undefined,
         continuationToken: undefined,
       });
@@ -309,6 +310,98 @@ describe("SessionList", () => {
       await waitFor(() => {
         expect(mockListSessions).toHaveBeenCalledWith(
           expect.objectContaining({ continuationToken: "tok-abc" })
+        );
+      });
+    });
+  });
+
+  describe("tool badge", () => {
+    it("renders tool badge with explicit tool value", async () => {
+      mockListSessions.mockResolvedValue({
+        items: [
+          {
+            id: "s1", machineId: "m1", status: "active",
+            tool: "claude",
+            createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:00:00Z",
+            lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
+          },
+        ],
+        hasMore: false,
+      });
+
+      renderWithRouter();
+
+      await screen.findByText("m1");
+      expect(screen.getByText("claude")).toBeInTheDocument();
+    });
+
+    it("defaults tool badge to copilot when tool is undefined", async () => {
+      mockListSessions.mockResolvedValue({
+        items: [
+          {
+            id: "s1", machineId: "m1", status: "active",
+            createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:00:00Z",
+            lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
+          },
+        ],
+        hasMore: false,
+      });
+
+      renderWithRouter();
+
+      await screen.findByText("m1");
+      // ToolBadge defaults to "copilot" when tool is undefined
+      expect(screen.getByText("copilot")).toBeInTheDocument();
+    });
+
+    it("renders both tool badges for mixed sessions", async () => {
+      mockListSessions.mockResolvedValue({
+        items: [
+          {
+            id: "s1", machineId: "m1", status: "active", tool: "copilot",
+            createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:00:00Z",
+            lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
+          },
+          {
+            id: "s2", machineId: "m2", status: "completed", tool: "claude",
+            createdAt: "2025-01-15T11:00:00Z", updatedAt: "2025-01-15T11:00:00Z",
+            lastHeartbeat: "2025-01-15T11:00:00Z", userId: "u1", createdBy: "copilot",
+          },
+        ],
+        hasMore: false,
+      });
+
+      renderWithRouter();
+
+      await screen.findByText("m1");
+      expect(screen.getByText("copilot")).toBeInTheDocument();
+      expect(screen.getByText("claude")).toBeInTheDocument();
+    });
+  });
+
+  describe("tool filter", () => {
+    it("renders tool filter dropdown", async () => {
+      mockListSessions.mockResolvedValue({ items: [], hasMore: false });
+
+      renderWithRouter();
+
+      const toolFilter = await screen.findByLabelText("Filter by tool");
+      expect(toolFilter).toBeInTheDocument();
+    });
+
+    it("changing tool filter triggers re-fetch with correct params", async () => {
+      const user = userEvent.setup();
+      mockListSessions.mockResolvedValue({ items: [], hasMore: false });
+
+      renderWithRouter();
+
+      await screen.findByText("No sessions found.");
+      mockListSessions.mockClear();
+      await user.selectOptions(screen.getByLabelText("Filter by tool"), "claude");
+
+      await waitFor(() => {
+        expect(mockListSessions).toHaveBeenCalledWith(
+          expect.objectContaining({ tool: "claude" })
         );
       });
     });

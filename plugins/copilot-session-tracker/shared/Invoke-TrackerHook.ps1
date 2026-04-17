@@ -1,25 +1,74 @@
 <#
 .SYNOPSIS
-    Universal Copilot CLI hook handler for session tracking.
+    Universal hook handler for session tracking (Copilot CLI and Claude Code).
 .DESCRIPTION
-    Called by hooks.json for each hook event. Reads JSON from stdin,
-    enriches the payload, acquires a token, and POSTs to the tracker server.
+    Called by hooks.json (Copilot CLI) or Claude Code hooks for each hook event.
+    Reads JSON from stdin, normalizes the payload format, enriches it,
+    acquires a token, and POSTs to the tracker server.
+
+    Claude Code sends snake_case fields (session_id, transcript_path, etc.)
+    while Copilot CLI sends camelCase (sessionId, transcriptPath).
+    The -Tool parameter controls which normalization path runs.
 .PARAMETER HookType
-    The type of hook event (sessionStart, sessionEnd, userPromptSubmitted, etc.)
+    The API hook type (sessionStart, sessionEnd, userPromptSubmitted, etc.)
+.PARAMETER Tool
+    The tool that triggered the hook: "copilot" or "claude". Defaults to "copilot".
 #>
 param(
     [Parameter(Mandatory = $true)]
-    [string]$HookType
+    [string]$HookType,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Tool = "copilot"
 )
 
 $ErrorActionPreference = "Stop"
 
 try {
-    # Read stdin (hook payload from Copilot CLI)
+    # Read stdin (hook payload)
     $inputJson = [Console]::In.ReadToEnd()
     if ([string]::IsNullOrWhiteSpace($inputJson)) { exit 0 }
     
     $payload = $inputJson | ConvertFrom-Json
+    
+    # Normalize Claude Code payload to API format
+    # Claude sends snake_case fields and doesn't include a timestamp
+    if ($Tool -eq "claude") {
+        $normalized = @{}
+        
+        # Core fields present in all Claude hooks
+        $sid = if ($payload.session_id) { $payload.session_id } elseif ($payload.sessionId) { $payload.sessionId } else { "" }
+        $normalized.sessionId = $sid
+        if ($payload.cwd) { $normalized.cwd = $payload.cwd }
+        
+        # Claude doesn't send a unix-ms timestamp; synthesize one
+        $normalized.timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        
+        # Event-specific fields
+        if ($payload.source) { $normalized.source = $payload.source }
+        if ($payload.prompt) { $normalized.prompt = $payload.prompt }
+        if ($payload.transcript_path) { $normalized.transcriptPath = $payload.transcript_path }
+        
+        # Stop hook: Claude may not send stop_reason
+        if ($payload.stop_reason) { $normalized.stopReason = $payload.stop_reason }
+        elseif ($HookType -eq "agentStop") { $normalized.stopReason = "end_turn" }
+        
+        # SessionEnd: Claude may not send reason
+        if ($payload.reason) { $normalized.reason = $payload.reason }
+        elseif ($HookType -eq "sessionEnd") { $normalized.reason = "session_end" }
+        
+        # Subagent hooks: agent_type maps to agentName
+        if ($payload.agent_type) { $normalized.agentName = $payload.agent_type }
+        if ($payload.agent_id) { $normalized.agentDisplayName = $payload.agent_id }
+        
+        # Notification fields
+        if ($payload.message) { $normalized.message = $payload.message }
+        if ($payload.title) { $normalized.title = $payload.title }
+        if ($payload.notification_type) { $normalized.notificationType = $payload.notification_type }
+        if ($payload.hook_event_name) { $normalized.hookEventName = $payload.hook_event_name }
+        
+        $payload = [PSCustomObject]$normalized
+    }
     
     # Load config
     $configPath = Join-Path $env:USERPROFILE ".copilot\copilot-tracker-config.json"
@@ -37,6 +86,7 @@ try {
     
     # Enrich payload with machine info
     $payload | Add-Member -NotePropertyName "machineName" -NotePropertyValue $env:COMPUTERNAME -Force
+    $payload | Add-Member -NotePropertyName "tool" -NotePropertyValue $Tool -Force
     
     # For sessionStart: add git info from CWD
     if ($HookType -eq "sessionStart" -and $payload.cwd) {
@@ -54,8 +104,9 @@ try {
     if ($HookType -eq "postToolUse") {
         $payload = @{
             sessionId   = $payload.sessionId
-            timestamp   = $payload.timestamp
+            timestamp   = if ($payload.timestamp) { $payload.timestamp } else { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
             machineName = $env:COMPUTERNAME
+            tool        = $Tool
         }
     }
     

@@ -46,7 +46,7 @@ public class TrackerWebApplicationFactory : WebApplicationFactory<Program>
             // Replace repository interfaces with mocks
             var mockSessionRepo = new Mock<ISessionRepository>();
             mockSessionRepo
-                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
                 .ReturnsAsync(new PagedResult<Session> { Items = [] });
             mockSessionRepo
                 .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -299,7 +299,7 @@ public class FaultyWebApplicationFactory : WebApplicationFactory<Program>
 
             var mockSessionRepo = new Mock<ISessionRepository>();
             mockSessionRepo
-                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
+                .Setup(r => r.ListAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<int>()))
                 .ThrowsAsync(new InvalidOperationException("Simulated session repo failure"));
             mockSessionRepo
                 .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>()))

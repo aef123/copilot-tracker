@@ -281,4 +281,48 @@ public class HooksControllerTests
         result.Should().BeOfType<OkResult>();
         _sessionService.Verify(s => s.TouchSessionAsync("s1", "m1"), Times.Once);
     }
+
+    // --- Tool field tests ---
+
+    [Fact]
+    public async Task SessionStart_WithTool_PassesToolToService()
+    {
+        var session = new Session { Id = "tool-session", MachineId = "machine1" };
+        _sessionService
+            .Setup(s => s.InitializeFromHookAsync(
+                "tool-session", "machine1", "repo", "main", "new", null, "test-oid", "Test User", "claude"))
+            .ReturnsAsync(session);
+
+        var hook = new SessionStartHook
+        {
+            SessionId = "tool-session", MachineName = "machine1",
+            Repository = "repo", Branch = "main", Source = "new", Tool = "claude"
+        };
+        var result = await _controller.SessionStart(hook);
+
+        result.Should().BeOfType<OkObjectResult>();
+        _sessionService.Verify(s => s.InitializeFromHookAsync(
+            "tool-session", "machine1", "repo", "main", "new", null, "test-oid", "Test User", "claude"), Times.Once);
+    }
+
+    [Fact]
+    public async Task SessionStart_WithoutTool_PassesNullToolToService()
+    {
+        var session = new Session { Id = "no-tool-session", MachineId = "machine1" };
+        _sessionService
+            .Setup(s => s.InitializeFromHookAsync(
+                "no-tool-session", "machine1", "repo", "main", "new", null, "test-oid", "Test User", null))
+            .ReturnsAsync(session);
+
+        var hook = new SessionStartHook
+        {
+            SessionId = "no-tool-session", MachineName = "machine1",
+            Repository = "repo", Branch = "main", Source = "new"
+        };
+        var result = await _controller.SessionStart(hook);
+
+        result.Should().BeOfType<OkObjectResult>();
+        _sessionService.Verify(s => s.InitializeFromHookAsync(
+            "no-tool-session", "machine1", "repo", "main", "new", null, "test-oid", "Test User", null), Times.Once);
+    }
 }

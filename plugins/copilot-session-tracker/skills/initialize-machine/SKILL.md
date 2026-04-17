@@ -1,17 +1,17 @@
 ---
 name: initialize-machine
-description: "Configure this machine for Copilot Session Tracker. Sets up hooks-based tracking with certificate or user authentication."
+description: "Configure this machine for AI Session Tracker. Sets up hooks-based tracking for Claude Code or Copilot CLI with certificate or user authentication."
 argument-hint: "[server-url] [tenant-id]"
 compatibility: "Windows only. Requires PowerShell 7+. Azure CLI required for user auth mode."
 metadata:
   author: Copilot Session Tracker
-  version: 3.0.0
+  version: 4.0.0
   category: setup
 ---
 
-# Initialize Machine for Copilot Session Tracker
+# Initialize Machine for AI Session Tracker
 
-This skill configures the current machine for hooks-based Copilot Session Tracker. It installs hook scripts, configures authentication (certificate or Azure CLI), generates `hooks.json`, and verifies connectivity.
+This skill configures the current machine for hooks-based AI Session Tracker. It installs hook scripts, configures authentication (certificate or Azure CLI), generates hooks configuration for either Claude Code or Copilot CLI, and verifies connectivity.
 
 **Platform: Windows only** (uses `$env:USERPROFILE`, Windows-style paths, PowerShell 7+).
 
@@ -48,6 +48,28 @@ This is required. There is no default. Store as `$resourceId`.
 ```powershell
 $resourceId = "<user-provided>"
 ```
+
+### 0d. Detect Tool
+
+Determine if this is being run from Claude Code or GitHub Copilot CLI.
+
+**Detection method:** Check for the `CLAUDE_PROJECT_DIR` environment variable. If it exists, you are running in Claude Code. Otherwise, check if `~/.copilot/hooks/` exists (indicating Copilot CLI).
+
+```powershell
+if ($env:CLAUDE_PROJECT_DIR) {
+    $detectedTool = "claude"
+    Write-Output "🔍 Detected: Claude Code"
+} else {
+    $detectedTool = "copilot"
+    Write-Output "🔍 Detected: GitHub Copilot CLI"
+}
+```
+
+Ask the user to confirm: **"I detected you're running [tool]. Is this correct? (yes/no)"**
+
+If the user says no, ask them which tool they want to configure for.
+
+Store as `$tool`.
 
 ## Step 1: Ask About Authentication Mode
 
@@ -166,7 +188,7 @@ Auth Mode:     user (Azure CLI)
 
 ## Step 2: Install Hook Scripts
 
-Copy the hook scripts from the plugin's `shared/` directory to the user's machine.
+Copy the hook scripts from the plugin's `shared/` directory to the user's machine. These scripts are shared between both Claude Code and Copilot CLI and always install to `~/.copilot/copilot-tracker/`.
 
 ```powershell
 $trackerDir = Join-Path $env:USERPROFILE ".copilot\copilot-tracker"
@@ -236,112 +258,206 @@ $config | Set-Content -Path $configPath -Encoding UTF8
 Write-Output "✅ Config written: $configPath"
 ```
 
-## Step 4: Generate hooks.json
+## Step 4: Generate Hooks Configuration
 
-Create or merge `~/.copilot/hooks/hooks.json`. Preserves any non-tracker entries.
+Create or merge hooks configuration for the detected tool. For Copilot CLI, this generates `~/.copilot/hooks/hooks.json`. For Claude Code, this merges into `~/.claude/settings.json`.
+
+### Claude Code Hooks (`$tool -eq "claude"`)
+
+**CRITICAL FORMAT:** Claude Code hooks use PascalCase event names, `type: "command"` with a `command` field (not `powershell`), `shell: "powershell"` on Windows, `timeout` (not `timeoutSec`), and `async: true` for fire-and-forget execution. No `version` or `comment` fields.
+
+```powershell
+if ($tool -eq "claude") {
+    # Claude Code hooks go in ~/.claude/settings.json
+    $settingsPath = Join-Path $env:USERPROFILE ".claude\settings.json"
+    $hookScript = Join-Path $env:USERPROFILE ".copilot\copilot-tracker\Invoke-TrackerHook.ps1"
+    
+    # Define Claude hook mappings: Claude event name -> API hook type
+    $claudeHookMappings = @(
+        @{ claudeEvent = "SessionStart";      apiHookType = "sessionStart";         timeout = 15; matcher = "startup|resume" }
+        @{ claudeEvent = "SessionEnd";        apiHookType = "sessionEnd";           timeout = 15; matcher = $null }
+        @{ claudeEvent = "UserPromptSubmit";  apiHookType = "userPromptSubmitted";  timeout = 15; matcher = $null }
+        @{ claudeEvent = "Stop";              apiHookType = "agentStop";            timeout = 15; matcher = $null }
+        @{ claudeEvent = "SubagentStart";     apiHookType = "subagentStart";        timeout = 15; matcher = $null }
+        @{ claudeEvent = "SubagentStop";      apiHookType = "subagentStop";         timeout = 15; matcher = $null }
+        @{ claudeEvent = "Notification";      apiHookType = "notification";         timeout = 15; matcher = $null }
+        @{ claudeEvent = "PostToolUse";       apiHookType = "postToolUse";          timeout = 10; matcher = $null }
+    )
+    
+    # Build Claude hooks structure
+    $claudeHooks = [ordered]@{}
+    foreach ($mapping in $claudeHookMappings) {
+        $handler = [ordered]@{
+            type    = "command"
+            command = "powershell -ExecutionPolicy Bypass -File `"$hookScript`" -HookType $($mapping.apiHookType) -Tool claude"
+            shell   = "powershell"
+            async   = $true
+            timeout = $mapping.timeout
+        }
+        
+        $matcherGroup = [ordered]@{
+            hooks = @($handler)
+        }
+        if ($mapping.matcher) {
+            $matcherGroup.matcher = $mapping.matcher
+        }
+        
+        $claudeHooks[$mapping.claudeEvent] = @($matcherGroup)
+    }
+    
+    # Read existing settings.json and merge
+    $settingsDir = Split-Path $settingsPath
+    if (-not (Test-Path $settingsDir)) {
+        New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+    }
+    
+    $existingSettings = @{}
+    if (Test-Path $settingsPath) {
+        try {
+            $existingSettings = Get-Content $settingsPath -Raw | ConvertFrom-Json -AsHashtable
+            Write-Output "✅ Read existing settings.json"
+        } catch {
+            Write-Warning "⚠️  Existing settings.json was invalid, starting fresh."
+            $existingSettings = @{}
+        }
+    }
+    
+    # Merge hooks: preserve non-tracker hooks in each event
+    if (-not $existingSettings.ContainsKey("hooks")) {
+        $existingSettings["hooks"] = @{}
+    }
+    
+    foreach ($eventName in $claudeHooks.Keys) {
+        $existingEntries = @()
+        if ($existingSettings["hooks"].ContainsKey($eventName)) {
+            # Keep entries whose command does not reference Invoke-TrackerHook
+            $existingEntries = @($existingSettings["hooks"][$eventName] | Where-Object {
+                $hasTracker = $false
+                if ($_.hooks) {
+                    foreach ($h in $_.hooks) {
+                        if ($h.command -and $h.command -match "Invoke-TrackerHook") { $hasTracker = $true }
+                    }
+                }
+                -not $hasTracker
+            })
+        }
+        $existingSettings["hooks"][$eventName] = @($existingEntries) + $claudeHooks[$eventName]
+    }
+    
+    # Write atomically
+    $tempPath = "$settingsPath.tmp"
+    $existingSettings | ConvertTo-Json -Depth 10 | Set-Content -Path $tempPath -Encoding UTF8
+    Move-Item -Path $tempPath -Destination $settingsPath -Force
+    Write-Output "✅ Claude Code hooks written: $settingsPath"
+}
+```
+
+### Copilot CLI Hooks (`$tool -eq "copilot"`)
 
 **CRITICAL FORMAT:** hooks.json MUST have `"version": 1` at the top level and all hook types MUST be inside a `"hooks"` wrapper object. Each entry uses `"type": "command"` and a `"powershell"` string (not `command`/`args`). Getting this wrong causes Copilot CLI to silently ignore all hooks.
 
 ```powershell
-$hooksDir = Join-Path $env:USERPROFILE ".copilot\hooks"
-$hooksPath = Join-Path $hooksDir "hooks.json"
-$hookScript = Join-Path $env:USERPROFILE ".copilot\copilot-tracker\Invoke-TrackerHook.ps1"
+else {
+    $hooksDir = Join-Path $env:USERPROFILE ".copilot\hooks"
+    $hooksPath = Join-Path $hooksDir "hooks.json"
+    $hookScript = Join-Path $env:USERPROFILE ".copilot\copilot-tracker\Invoke-TrackerHook.ps1"
 
-# Define the tracker hooks
-$trackerHookTypes = @(
-    @{ name = "sessionStart";         timeoutSec = 15 }
-    @{ name = "sessionEnd";           timeoutSec = 15 }
-    @{ name = "userPromptSubmitted";  timeoutSec = 15 }
-    @{ name = "agentStop";            timeoutSec = 15 }
-    @{ name = "subagentStart";        timeoutSec = 15 }
-    @{ name = "subagentStop";         timeoutSec = 15 }
-    @{ name = "notification";         timeoutSec = 15 }
-    @{ name = "postToolUse";          timeoutSec = 10 }
-)
-
-# Build tracker hook entries using the CORRECT format:
-# { "type": "command", "powershell": "<full command string>", "timeoutSec": N }
-$trackerHooks = [ordered]@{}
-foreach ($hook in $trackerHookTypes) {
-    $trackerHooks[$hook.name] = @(
-        @{
-            type       = "command"
-            powershell = "powershell -ExecutionPolicy Bypass -File `"$hookScript`" -HookType $($hook.name)"
-            comment    = "Copilot Session Tracker"
-            timeoutSec = $hook.timeoutSec
-        }
+    # Define the tracker hooks
+    $trackerHookTypes = @(
+        @{ name = "sessionStart";         timeoutSec = 15 }
+        @{ name = "sessionEnd";           timeoutSec = 15 }
+        @{ name = "userPromptSubmitted";  timeoutSec = 15 }
+        @{ name = "agentStop";            timeoutSec = 15 }
+        @{ name = "subagentStart";        timeoutSec = 15 }
+        @{ name = "subagentStop";         timeoutSec = 15 }
+        @{ name = "notification";         timeoutSec = 15 }
+        @{ name = "postToolUse";          timeoutSec = 10 }
     )
-}
 
-# Read existing hooks.json if it exists, preserving non-tracker entries
-if (-not (Test-Path $hooksDir)) {
-    New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
-}
-
-$existingHooksObj = $null
-$existingHookEntries = [ordered]@{}
-if (Test-Path $hooksPath) {
-    try {
-        $existingHooksObj = Get-Content $hooksPath -Raw | ConvertFrom-Json -AsHashtable
-        # Extract the hooks from inside the "hooks" wrapper (if present)
-        if ($existingHooksObj.ContainsKey("hooks")) {
-            $existingHookEntries = $existingHooksObj["hooks"]
-        } else {
-            # Legacy format without wrapper - treat all keys except "version" as hooks
-            foreach ($k in $existingHooksObj.Keys) {
-                if ($k -ne "version") { $existingHookEntries[$k] = $existingHooksObj[$k] }
+    # Build tracker hook entries using the CORRECT format:
+    # { "type": "command", "powershell": "<full command string>", "timeoutSec": N }
+    $trackerHooks = [ordered]@{}
+    foreach ($hook in $trackerHookTypes) {
+        $trackerHooks[$hook.name] = @(
+            @{
+                type       = "command"
+                powershell = "powershell -ExecutionPolicy Bypass -File `"$hookScript`" -HookType $($hook.name)"
+                comment    = "Copilot Session Tracker"
+                timeoutSec = $hook.timeoutSec
             }
+        )
+    }
+
+    # Read existing hooks.json if it exists, preserving non-tracker entries
+    if (-not (Test-Path $hooksDir)) {
+        New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
+    }
+
+    $existingHooksObj = $null
+    $existingHookEntries = [ordered]@{}
+    if (Test-Path $hooksPath) {
+        try {
+            $existingHooksObj = Get-Content $hooksPath -Raw | ConvertFrom-Json -AsHashtable
+            # Extract the hooks from inside the "hooks" wrapper (if present)
+            if ($existingHooksObj.ContainsKey("hooks")) {
+                $existingHookEntries = $existingHooksObj["hooks"]
+            } else {
+                # Legacy format without wrapper - treat all keys except "version" as hooks
+                foreach ($k in $existingHooksObj.Keys) {
+                    if ($k -ne "version") { $existingHookEntries[$k] = $existingHooksObj[$k] }
+                }
+            }
+            Write-Output "✅ Read existing hooks.json"
+        } catch {
+            Write-Warning "⚠️  Existing hooks.json was invalid, starting fresh."
         }
-        Write-Output "✅ Read existing hooks.json"
+    }
+
+    # Merge: for each tracker hook type, keep non-tracker entries and add tracker entry
+    foreach ($hookType in $trackerHooks.Keys) {
+        $existingEntries = @()
+        if ($existingHookEntries.ContainsKey($hookType)) {
+            # Keep entries whose powershell field does not reference Invoke-TrackerHook
+            $existingEntries = @($existingHookEntries[$hookType] | Where-Object {
+                $ps = if ($_.powershell) { $_.powershell } else { "" }
+                $ps -notmatch "Invoke-TrackerHook"
+            })
+        }
+        $existingHookEntries[$hookType] = @($existingEntries) + $trackerHooks[$hookType]
+    }
+
+    # Build final structure with version and hooks wrapper
+    $finalHooks = [ordered]@{
+        version = 1
+        hooks   = $existingHookEntries
+    }
+
+    # Write atomically: write to temp file then move
+    $tempPath = "$hooksPath.tmp"
+    $finalHooks | ConvertTo-Json -Depth 10 | Set-Content -Path $tempPath -Encoding UTF8
+    Move-Item -Path $tempPath -Destination $hooksPath -Force
+    Write-Output "✅ hooks.json written: $hooksPath"
+
+    # Validate the result
+    try {
+        $validation = Get-Content $hooksPath -Raw | ConvertFrom-Json
+        if (-not $validation.version) {
+            Write-Warning "⚠️  hooks.json is missing 'version' field!"
+        }
+        if (-not $validation.hooks) {
+            Write-Warning "⚠️  hooks.json is missing 'hooks' wrapper!"
+        }
+        $keys = ($validation.hooks | Get-Member -MemberType NoteProperty).Name
+        $badKeys = $keys | Where-Object { $_ -cmatch "^[A-Z]" }
+        if ($badKeys) {
+            Write-Warning "⚠️  Found non-camelCase keys in hooks.json: $($badKeys -join ', ')"
+        } else {
+            Write-Output "✅ hooks.json validated: version=$($validation.version), $($keys.Count) hook types, all camelCase."
+        }
     } catch {
-        Write-Warning "⚠️  Existing hooks.json was invalid, starting fresh."
+        Write-Error "❌ hooks.json is not valid JSON after write!"
+        return
     }
-}
-
-# Merge: for each tracker hook type, keep non-tracker entries and add tracker entry
-foreach ($hookType in $trackerHooks.Keys) {
-    $existingEntries = @()
-    if ($existingHookEntries.ContainsKey($hookType)) {
-        # Keep entries whose powershell field does not reference Invoke-TrackerHook
-        $existingEntries = @($existingHookEntries[$hookType] | Where-Object {
-            $ps = if ($_.powershell) { $_.powershell } else { "" }
-            $ps -notmatch "Invoke-TrackerHook"
-        })
-    }
-    $existingHookEntries[$hookType] = @($existingEntries) + $trackerHooks[$hookType]
-}
-
-# Build final structure with version and hooks wrapper
-$finalHooks = [ordered]@{
-    version = 1
-    hooks   = $existingHookEntries
-}
-
-# Write atomically: write to temp file then move
-$tempPath = "$hooksPath.tmp"
-$finalHooks | ConvertTo-Json -Depth 10 | Set-Content -Path $tempPath -Encoding UTF8
-Move-Item -Path $tempPath -Destination $hooksPath -Force
-Write-Output "✅ hooks.json written: $hooksPath"
-
-# Validate the result
-try {
-    $validation = Get-Content $hooksPath -Raw | ConvertFrom-Json
-    if (-not $validation.version) {
-        Write-Warning "⚠️  hooks.json is missing 'version' field!"
-    }
-    if (-not $validation.hooks) {
-        Write-Warning "⚠️  hooks.json is missing 'hooks' wrapper!"
-    }
-    $keys = ($validation.hooks | Get-Member -MemberType NoteProperty).Name
-    $badKeys = $keys | Where-Object { $_ -cmatch "^[A-Z]" }
-    if ($badKeys) {
-        Write-Warning "⚠️  Found non-camelCase keys in hooks.json: $($badKeys -join ', ')"
-    } else {
-        Write-Output "✅ hooks.json validated: version=$($validation.version), $($keys.Count) hook types, all camelCase."
-    }
-} catch {
-    Write-Error "❌ hooks.json is not valid JSON after write!"
-    return
 }
 ```
 
@@ -387,12 +503,22 @@ try {
     Write-Warning "⚠️  Server connectivity check failed: $_"
 }
 
-# 5c. Confirm hooks.json is valid JSON (already done in Step 4, but re-verify)
-try {
-    $null = Get-Content $hooksPath -Raw | ConvertFrom-Json
-    Write-Output "✅ hooks.json is valid JSON."
-} catch {
-    Write-Error "❌ hooks.json validation failed: $_"
+# 5c. Confirm hooks configuration is valid
+if ($tool -eq "claude") {
+    $settingsPath = Join-Path $env:USERPROFILE ".claude\settings.json"
+    try {
+        $null = Get-Content $settingsPath -Raw | ConvertFrom-Json
+        Write-Output "✅ settings.json is valid JSON."
+    } catch {
+        Write-Error "❌ settings.json validation failed: $_"
+    }
+} else {
+    try {
+        $null = Get-Content $hooksPath -Raw | ConvertFrom-Json
+        Write-Output "✅ hooks.json is valid JSON."
+    } catch {
+        Write-Error "❌ hooks.json validation failed: $_"
+    }
 }
 ```
 
@@ -433,21 +559,29 @@ $summaryAuth = if ($authMode -eq "certificate") {
     "user (Azure CLI)"
 }
 
+$summaryTool = if ($tool -eq "claude") { "Claude Code" } else { "Copilot CLI" }
+$summaryHooksConfig = if ($tool -eq "claude") {
+    "$env:USERPROFILE\.claude\settings.json"
+} else {
+    "$env:USERPROFILE\.copilot\hooks\hooks.json"
+}
+
 Write-Output @"
 
 ✅ Machine Initialized!
 
+Tool:          $summaryTool
 Machine:       $env:COMPUTERNAME
 Auth Mode:     $summaryAuth
 Hook Scripts:  $env:USERPROFILE\.copilot\copilot-tracker\
-Hooks Config:  $env:USERPROFILE\.copilot\hooks\hooks.json
+Hooks Config:  $summaryHooksConfig
 Server:        $serverUrl
 Tenant:        $tenantId
 Resource ID:   $resourceId
 
-Session tracking is now fully automatic via Copilot CLI hooks.
+Session tracking is now fully automatic via $summaryTool hooks.
 No manual tracking commands or copilot-instructions.md changes needed.
-To test: start a new Copilot CLI session and check the dashboard.
+To test: start a new $summaryTool session and check the dashboard.
 "@
 ```
 
@@ -455,10 +589,13 @@ To test: start a new Copilot CLI session and check the dashboard.
 
 - **Windows only.** All paths use `$env:USERPROFILE` and Windows-style separators.
 - **Don't create new scripts.** Always copy from the plugin's `shared/` directory.
-- **Idempotent.** Running multiple times is safe. hooks.json merges preserve non-tracker entries.
+- **Idempotent.** Running multiple times is safe. Both hooks.json and settings.json merges preserve non-tracker entries.
+- **Two tools supported.** Claude Code hooks go to `~/.claude/settings.json` (PascalCase events, `command` field, `async: true`). Copilot CLI hooks go to `~/.copilot/hooks/hooks.json` (camelCase events, `powershell` field, `version: 1`).
+- **Shared hook scripts.** Both tools use the same `~/.copilot/copilot-tracker/` directory for hook scripts. The `-Tool claude` parameter tells `Invoke-TrackerHook.ps1` which tool triggered the hook.
+- **Claude Code async hooks.** All Claude hooks use `async: true` for fire-and-forget execution so tracking never blocks the user's workflow.
 - **Two auth modes.** Certificate auth is preferred for automation and CI scenarios. User auth via Azure CLI is simpler for individual developers.
 - **Certificate thumbprint stored.** The config stores the thumbprint (not just subject) for unambiguous certificate lookup at runtime.
-- **hooks.json is atomic.** Written to a temp file first, then moved into place.
+- **Atomic writes.** Both hooks.json and settings.json are written to a temp file first, then moved into place.
 - **No copilot-instructions.md changes needed.** Hooks handle all tracking automatically. The old tracker section is removed if present.
 - **Multi-tenant friendly.** Uses `--tenant` on `az account get-access-token` so your active subscription doesn't matter.
 - **Non-destructive verification.** Uses the anonymous `/api/health` endpoint, no test sessions created.

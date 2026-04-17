@@ -45,10 +45,10 @@ public class SessionsControllerTests
             ContinuationToken = null
         };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, null, 50))
+            .Setup(s => s.ListAsync(null, null, null, null, null, 50))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, null, null, 50);
+        var result = await _controller.List(null, null, null, null, null, 50);
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(pagedResult);
@@ -87,10 +87,10 @@ public class SessionsControllerTests
     {
         var empty = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync("nonexistent-machine", null, null, null, 50))
+            .Setup(s => s.ListAsync("nonexistent-machine", null, null, null, null, 50))
             .ReturnsAsync(empty);
 
-        var result = await _controller.List("nonexistent-machine", null, null, null, 50);
+        var result = await _controller.List("nonexistent-machine", null, null, null, null, 50);
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         var paged = ok.Value.Should().BeOfType<PagedResult<Session>>().Subject;
@@ -103,13 +103,13 @@ public class SessionsControllerTests
     {
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync(null, "active", null, null, 50))
+            .Setup(s => s.ListAsync(null, "active", null, null, null, 50))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, "active", null, null, 50);
+        var result = await _controller.List(null, "active", null, null, null, 50);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync(null, "active", null, null, 50), Times.Once);
+        _sessionService.Verify(s => s.ListAsync(null, "active", null, null, null, 50), Times.Once);
     }
 
     [Fact]
@@ -118,13 +118,13 @@ public class SessionsControllerTests
         var since = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, since, null, 50))
+            .Setup(s => s.ListAsync(null, null, null, since, null, 50))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, since, null, 50);
+        var result = await _controller.List(null, null, null, since, null, 50);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync(null, null, since, null, 50), Times.Once);
+        _sessionService.Verify(s => s.ListAsync(null, null, null, since, null, 50), Times.Once);
     }
 
     [Fact]
@@ -132,13 +132,13 @@ public class SessionsControllerTests
     {
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, "token123", 50))
+            .Setup(s => s.ListAsync(null, null, null, null, "token123", 50))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, null, "token123", 50);
+        var result = await _controller.List(null, null, null, null, "token123", 50);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync(null, null, null, "token123", 50), Times.Once);
+        _sessionService.Verify(s => s.ListAsync(null, null, null, null, "token123", 50), Times.Once);
     }
 
     [Fact]
@@ -146,13 +146,13 @@ public class SessionsControllerTests
     {
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, null, 10))
+            .Setup(s => s.ListAsync(null, null, null, null, null, 10))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, null, null, 10);
+        var result = await _controller.List(null, null, null, null, null, 10);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync(null, null, null, null, 10), Times.Once);
+        _sessionService.Verify(s => s.ListAsync(null, null, null, null, null, 10), Times.Once);
     }
 
     [Fact]
@@ -160,13 +160,13 @@ public class SessionsControllerTests
     {
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, null, 10000))
+            .Setup(s => s.ListAsync(null, null, null, null, null, 10000))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, null, null, 10000);
+        var result = await _controller.List(null, null, null, null, null, 10000);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync(null, null, null, null, 10000), Times.Once);
+        _sessionService.Verify(s => s.ListAsync(null, null, null, null, null, 10000), Times.Once);
     }
 
     [Fact]
@@ -178,10 +178,10 @@ public class SessionsControllerTests
             ContinuationToken = "next-page-token"
         };
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, null, 1))
+            .Setup(s => s.ListAsync(null, null, null, null, null, 1))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List(null, null, null, null, 1);
+        var result = await _controller.List(null, null, null, null, null, 1);
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         var paged = ok.Value.Should().BeOfType<PagedResult<Session>>().Subject;
@@ -193,10 +193,10 @@ public class SessionsControllerTests
     public async Task List_ServiceThrows_ExceptionPropagates()
     {
         _sessionService
-            .Setup(s => s.ListAsync(null, null, null, null, 50))
+            .Setup(s => s.ListAsync(null, null, null, null, null, 50))
             .ThrowsAsync(new InvalidOperationException("Database unavailable"));
 
-        Func<Task> act = () => _controller.List(null, null, null, null, 50);
+        Func<Task> act = () => _controller.List(null, null, null, null, null, 50);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Database unavailable");
@@ -233,13 +233,13 @@ public class SessionsControllerTests
         var since = new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc);
         var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
         _sessionService
-            .Setup(s => s.ListAsync("m1", "active", since, "tok", 25))
+            .Setup(s => s.ListAsync("m1", "active", null, since, "tok", 25))
             .ReturnsAsync(pagedResult);
 
-        var result = await _controller.List("m1", "active", since, "tok", 25);
+        var result = await _controller.List("m1", "active", null, since, "tok", 25);
 
         result.Should().BeOfType<OkObjectResult>();
-        _sessionService.Verify(s => s.ListAsync("m1", "active", since, "tok", 25), Times.Once);
+        _sessionService.Verify(s => s.ListAsync("m1", "active", null, since, "tok", 25), Times.Once);
     }
 
     // --- POST endpoint tests ---
@@ -336,5 +336,21 @@ public class SessionsControllerTests
         var result = await _controller.Complete("m1", "s1");
 
         result.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    // --- Tool filter tests ---
+
+    [Fact]
+    public async Task List_WithToolFilter_PassesToService()
+    {
+        var pagedResult = new PagedResult<Session> { Items = [], ContinuationToken = null };
+        _sessionService
+            .Setup(s => s.ListAsync(null, null, "claude", null, null, 50))
+            .ReturnsAsync(pagedResult);
+
+        var result = await _controller.List(null, null, "claude", null, null, 50);
+
+        result.Should().BeOfType<OkObjectResult>();
+        _sessionService.Verify(s => s.ListAsync(null, null, "claude", null, null, 50), Times.Once);
     }
 }

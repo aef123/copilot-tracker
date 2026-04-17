@@ -13,6 +13,7 @@ public class SessionStartHook
     public string? MachineName { get; set; }
     public string? Repository { get; set; }
     public string? Branch { get; set; }
+    public string? Tool { get; set; }
 }
 
 public class SessionEndHook

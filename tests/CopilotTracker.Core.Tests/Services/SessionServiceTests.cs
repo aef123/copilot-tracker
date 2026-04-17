@@ -327,10 +327,10 @@ public class SessionServiceTests
     [Fact]
     public async Task ListAsync_ReturnsEmptyPage_WhenNoSessions()
     {
-        _sessionRepo.Setup(r => r.ListAsync("m1", null, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync("m1", null, null, null, null, 50))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
 
-        var result = await _sut.ListAsync("m1", null, null, null, 50);
+        var result = await _sut.ListAsync("m1", null, null, null, null, 50);
 
         result.Items.Should().BeEmpty();
         result.HasMore.Should().BeFalse();
@@ -340,14 +340,14 @@ public class SessionServiceTests
     public async Task ListAsync_ForwardsPaginationParameters()
     {
         var since = DateTime.UtcNow.AddDays(-1);
-        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, since, "token", 10))
+        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, null, since, "token", 10))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = [new Session()],
                 ContinuationToken = "next"
             });
 
-        var result = await _sut.ListAsync("m1", SessionStatus.Active, since, "token", 10);
+        var result = await _sut.ListAsync("m1", SessionStatus.Active, null, since, "token", 10);
 
         result.Items.Should().HaveCount(1);
         result.HasMore.Should().BeTrue();
@@ -435,5 +435,57 @@ public class SessionServiceTests
         var results = await Task.WhenAll(tasks);
 
         results.Should().AllSatisfy(r => r.Status.Should().Be(SessionStatus.Active));
+    }
+
+    // --- Tool field tests ---
+
+    [Fact]
+    public async Task InitializeFromHookAsync_WithTool_SetsToolOnNewSession()
+    {
+        _sessionRepo.Setup(r => r.GetActiveByMachineAsync("m1"))
+            .ReturnsAsync(new List<Session>());
+        _sessionRepo.Setup(r => r.CreateAsync(It.IsAny<Session>()))
+            .ReturnsAsync((Session s) => s);
+
+        var result = await _sut.InitializeFromHookAsync(
+            "s1", "m1", "repo", "main", "new", null, "user1", "copilot", "claude");
+
+        result.Tool.Should().Be("claude");
+        _sessionRepo.Verify(r => r.CreateAsync(It.Is<Session>(s => s.Tool == "claude")), Times.Once);
+    }
+
+    [Fact]
+    public async Task InitializeFromHookAsync_WithTool_SetsToolOnResumedSession()
+    {
+        var existing = new Session
+        {
+            Id = "s1", MachineId = "m1", Status = SessionStatus.Completed, Tool = null
+        };
+        _sessionRepo.Setup(r => r.GetAsync("s1", "m1")).ReturnsAsync(existing);
+        _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))
+            .ReturnsAsync((Session s) => s);
+
+        var result = await _sut.InitializeFromHookAsync(
+            "s1", "m1", "repo", "main", "resume", null, "user1", "copilot", "claude");
+
+        result.Tool.Should().Be("claude");
+        _sessionRepo.Verify(r => r.UpdateAsync(It.Is<Session>(s => s.Tool == "claude")), Times.Once);
+    }
+
+    [Fact]
+    public async Task ListAsync_PassesToolToRepository()
+    {
+        var since = DateTime.UtcNow.AddDays(-1);
+        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25))
+            .ReturnsAsync(new PagedResult<Session>
+            {
+                Items = [new Session { Id = "s1", Tool = "claude" }],
+                ContinuationToken = null
+            });
+
+        var result = await _sut.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25);
+
+        result.Items.Should().HaveCount(1);
+        _sessionRepo.Verify(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25), Times.Once);
     }
 }

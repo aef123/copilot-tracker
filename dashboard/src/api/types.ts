@@ -3,6 +3,7 @@ export interface Session {
   machineId: string;
   repository?: string;
   branch?: string;
+  tool?: string;
   status: "active" | "completed" | "stale";
   createdAt: string;
   updatedAt: string;

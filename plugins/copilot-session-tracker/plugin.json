@@ -1,10 +1,10 @@
 {
   "name": "copilot-session-tracker",
-  "description": "Track Copilot CLI sessions via hooks-based automatic tracking with certificate or user auth, real-time dashboard, and task reporting.",
-  "version": "3.0.0",
+  "description": "Track Claude Code and Copilot CLI sessions via hooks-based automatic tracking with certificate or user auth, real-time dashboard, and analytics.",
+  "version": "4.0.0",
   "author": {
     "name": "aef123"
   },
-  "keywords": ["session-tracking", "azure", "dashboard", "rest-api", "telemetry", "hooks"],
+  "keywords": ["session-tracking", "azure", "dashboard", "rest-api", "telemetry", "hooks", "claude-code", "copilot-cli"],
   "skills": "skills/"
 }

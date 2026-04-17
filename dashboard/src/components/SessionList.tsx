@@ -7,6 +7,11 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
+function ToolBadge({ tool }: { tool?: string }) {
+  const name = tool || "copilot";
+  return <span className={`tool-badge ${name}`}>{name}</span>;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
@@ -17,6 +22,7 @@ export function SessionList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [toolFilter, setToolFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
   const [continuationToken, setContinuationToken] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(false);
@@ -27,6 +33,7 @@ export function SessionList() {
       try {
         const result = await listSessions({
           status: statusFilter || undefined,
+          tool: toolFilter || undefined,
           machineId: machineFilter || undefined,
           continuationToken: token,
         });
@@ -46,7 +53,7 @@ export function SessionList() {
         setLoadingMore(false);
       }
     },
-    [statusFilter, machineFilter]
+    [statusFilter, toolFilter, machineFilter]
   );
 
   useEffect(() => {
@@ -78,6 +85,15 @@ export function SessionList() {
           <option value="completed">Completed</option>
           <option value="stale">Stale</option>
         </select>
+        <select
+          value={toolFilter}
+          onChange={(e) => setToolFilter(e.target.value)}
+          aria-label="Filter by tool"
+        >
+          <option value="">All tools</option>
+          <option value="copilot">Copilot</option>
+          <option value="claude">Claude</option>
+        </select>
         <input
           type="text"
           placeholder="Filter by machine ID..."
@@ -96,6 +112,7 @@ export function SessionList() {
               <tr>
                 <th>Status</th>
                 <th>Machine ID</th>
+                <th>Tool</th>
                 <th>Repository</th>
                 <th>Branch</th>
                 <th>Created</th>
@@ -112,6 +129,7 @@ export function SessionList() {
                     <StatusBadge status={s.status} />
                   </td>
                   <td>{s.machineId}</td>
+                  <td><ToolBadge tool={s.tool} /></td>
                   <td>{s.repository || "-"}</td>
                   <td>{s.branch || "-"}</td>
                   <td>{formatDate(s.createdAt)}</td>

@@ -6,6 +6,7 @@ public class Session
     public string MachineId { get; set; } = string.Empty;
     public string? Repository { get; set; }
     public string? Branch { get; set; }
+    public string? Tool { get; set; }
     public string Status { get; set; } = SessionStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

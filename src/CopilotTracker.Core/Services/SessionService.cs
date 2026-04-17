@@ -80,14 +80,15 @@ public class SessionService
     }
 
     public virtual async Task<PagedResult<Session>> ListAsync(
-        string? machineId, string? status, DateTime? since, string? continuationToken, int pageSize)
+        string? machineId, string? status, string? tool, DateTime? since, string? continuationToken, int pageSize)
     {
-        return await _sessions.ListAsync(machineId, status, since, continuationToken, pageSize);
+        return await _sessions.ListAsync(machineId, status, tool, since, continuationToken, pageSize);
     }
 
     public virtual async Task<Session> InitializeFromHookAsync(
         string hookSessionId, string machineName, string? repository, string? branch,
-        string source, string? initialPrompt, string userId, string createdBy)
+        string source, string? initialPrompt, string userId, string createdBy,
+        string? tool = null)
     {
         // For "resume" or "startup": check if session already exists
         if (source == "resume" || source == "startup")
@@ -96,6 +97,7 @@ public class SessionService
             if (existing != null)
             {
                 existing.Status = SessionStatus.Active;
+                existing.Tool = tool ?? existing.Tool;
                 existing.LastHeartbeat = DateTime.UtcNow;
                 existing.UpdatedAt = DateTime.UtcNow;
                 await _sessions.UpdateAsync(existing);
@@ -118,6 +120,7 @@ public class SessionService
             MachineId = machineName,
             Repository = repository,
             Branch = branch,
+            Tool = tool,
             Status = SessionStatus.Active,
             UserId = userId,
             CreatedBy = createdBy,

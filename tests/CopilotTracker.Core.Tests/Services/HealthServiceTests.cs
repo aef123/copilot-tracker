@@ -20,19 +20,19 @@ public class HealthServiceTests
 
     private void SetupCounts(int active, int completed, int stale, int totalTasks, int activeTasks, int totalPrompts = 0, int activePrompts = 0)
     {
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, null, 50))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = Enumerable.Range(0, active).Select(_ => new Session()).ToList(),
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, 50))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = Enumerable.Range(0, completed).Select(_ => new Session()).ToList(),
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, null, 50))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = Enumerable.Range(0, stale).Select(_ => new Session()).ToList(),
@@ -67,19 +67,19 @@ public class HealthServiceTests
     private void SetupProbes(int activeSessions, int completedSessions, int staleSessions, int totalTasks, int activeTasks, int totalPrompts = 0, int activePrompts = 0)
     {
         // HealthService first calls ListAsync with pageSize:1 as a probe before counting
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, 1))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, null, 1))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = activeSessions > 0 ? [new Session()] : [],
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, 1))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, 1))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = completedSessions > 0 ? [new Session()] : [],
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, 1))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, null, 1))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = staleSessions > 0 ? [new Session()] : [],
@@ -135,7 +135,7 @@ public class HealthServiceTests
 
         result1.Should().BeSameAs(result2);
         // ListAsync for active sessions should only be called once due to caching
-        _sessionRepo.Verify(r => r.ListAsync(null, SessionStatus.Active, null, null, 50), Times.Once);
+        _sessionRepo.Verify(r => r.ListAsync(null, SessionStatus.Active, null, null, null, 50), Times.Once);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class HealthServiceTests
     [Fact]
     public async Task GetHealthAsync_PropagatesRepoException()
     {
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, It.IsAny<int>()))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, null, It.IsAny<int>()))
             .ThrowsAsync(new Exception("DB down"));
 
         var act = () => _sut.GetHealthAsync();
@@ -218,15 +218,15 @@ public class HealthServiceTests
     public async Task GetHealthAsync_ConcurrentCalls_OnlyFetchOnce()
     {
         int callCount = 0;
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, It.IsAny<int>()))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, null, It.IsAny<int>()))
             .ReturnsAsync(() =>
             {
                 Interlocked.Increment(ref callCount);
                 return new PagedResult<Session> { Items = [], ContinuationToken = null };
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, It.IsAny<int>()))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, It.IsAny<int>()))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
         _taskRepo.Setup(r => r.ListAsync(null, null, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<TrackerTask> { Items = [], ContinuationToken = null });
@@ -248,7 +248,7 @@ public class HealthServiceTests
     public async Task GetHealthAsync_AfterException_RetrySucceeds()
     {
         // First call: repo throws on the initial pageSize:1 probe
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, 1))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Active, null, null, null, 1))
             .ThrowsAsync(new Exception("Transient error"));
 
         var act = () => _sut.GetHealthAsync();

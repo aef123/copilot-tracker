@@ -22,11 +22,12 @@ public class SessionsController : ControllerBase
     public async Task<IActionResult> List(
         [FromQuery] string? machineId,
         [FromQuery] string? status,
+        [FromQuery] string? tool,
         [FromQuery] DateTime? since,
         [FromQuery] string? continuationToken,
         [FromQuery] int pageSize = 50)
     {
-        var result = await _sessionService.ListAsync(machineId, status, since, continuationToken, pageSize);
+        var result = await _sessionService.ListAsync(machineId, status, tool, since, continuationToken, pageSize);
         return Ok(result);
     }
 

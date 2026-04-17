@@ -17,6 +17,11 @@ import {
 
 const COLORS = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#bc8cff", "#f0883e", "#a5d6ff", "#7ee787"];
 
+const toolColors: Record<string, string> = {
+  copilot: "#58a6ff",
+  claude: "#bc8cff",
+};
+
 interface ChartData {
   name: string;
   value: number;
@@ -31,7 +36,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-function DonutChart({ data }: { data: ChartData[] }) {
+function DonutChart({ data, colorMap }: { data: ChartData[]; colorMap?: Record<string, string> }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
   if (total === 0) return <div className="chart-empty">No data</div>;
 
@@ -49,8 +54,8 @@ function DonutChart({ data }: { data: ChartData[] }) {
           label={({ name, value }) => `${name} (${value})`}
           labelLine={false}
         >
-          {data.map((_entry, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          {data.map((entry, i) => (
+            <Cell key={i} fill={colorMap?.[entry.name] || COLORS[i % COLORS.length]} />
           ))}
         </Pie>
         <Tooltip
@@ -195,6 +200,13 @@ export function ChartsDashboard() {
   if (loading) return <div className="loading">Loading charts...</div>;
   if (error) return <div className="error-message">{error}</div>;
 
+  // Sessions by tool (Claude vs Copilot)
+  const sessionsByTool = aggregate(sessions, (s) => s.tool || "copilot");
+
+  // Prompts by tool
+  const sessionToolMap = new Map(sessions.map((s) => [s.id, s.tool || "copilot"]));
+  const promptsByTool = aggregate(prompts, (p) => sessionToolMap.get(p.sessionId) || "copilot");
+
   // Session status breakdown
   const sessionsByStatus = aggregate(sessions, (s) => s.status);
 
@@ -256,6 +268,15 @@ export function ChartsDashboard() {
         </ChartCard>
         <ChartCard title="Prompts by Status">
           <DonutChart data={promptsByStatus} />
+        </ChartCard>
+      </div>
+
+      <div className="charts-row">
+        <ChartCard title="Sessions by Tool">
+          <DonutChart data={sessionsByTool} colorMap={toolColors} />
+        </ChartCard>
+        <ChartCard title="Prompts by Tool">
+          <DonutChart data={promptsByTool} colorMap={toolColors} />
         </ChartCard>
       </div>
 

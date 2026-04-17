@@ -42,7 +42,7 @@ public class HooksController : ControllerBase
         var session = await _sessionService.InitializeFromHookAsync(
             hook.SessionId, hook.MachineName ?? Environment.MachineName,
             hook.Repository, hook.Branch, hook.Source, hook.InitialPrompt,
-            userId, createdBy);
+            userId, createdBy, hook.Tool);
         return Ok(new { sessionId = session.Id });
     }
 

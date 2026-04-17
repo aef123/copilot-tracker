@@ -9,6 +9,11 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
+function ToolBadge({ tool }: { tool?: string }) {
+  const name = tool || "copilot";
+  return <span className={`tool-badge ${name}`}>{name}</span>;
+}
+
 function timeAgo(iso: string): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
@@ -87,7 +92,10 @@ export function SessionGrid() {
                 }
               >
                 <div className="session-card-header">
-                  <StatusBadge status={s.status} />
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <StatusBadge status={s.status} />
+                    <ToolBadge tool={s.tool} />
+                  </div>
                   <span className="session-card-heartbeat">{timeAgo(s.lastHeartbeat)}</span>
                 </div>
 

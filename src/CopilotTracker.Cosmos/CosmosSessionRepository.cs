@@ -63,6 +63,7 @@ public class CosmosSessionRepository : ISessionRepository
     public async Task<PagedResult<Session>> ListAsync(
         string? machineId = null,
         string? status = null,
+        string? tool = null,
         DateTime? since = null,
         string? continuationToken = null,
         int pageSize = 50)
@@ -75,6 +76,15 @@ public class CosmosSessionRepository : ISessionRepository
         if (status is not null)
             clauses.Add("c.status = @status");
 
+        if (tool is not null)
+        {
+            // Old documents won't have a tool field; treat them as "copilot"
+            if (tool.Equals("copilot", StringComparison.OrdinalIgnoreCase))
+                clauses.Add("(c.tool = @tool OR NOT IS_DEFINED(c.tool))");
+            else
+                clauses.Add("c.tool = @tool");
+        }
+
         if (since is not null)
             clauses.Add("c.createdAt >= @since");
 
@@ -84,6 +94,7 @@ public class CosmosSessionRepository : ISessionRepository
 
         if (machineId is not null) queryDef = queryDef.WithParameter("@machineId", machineId);
         if (status is not null) queryDef = queryDef.WithParameter("@status", status);
+        if (tool is not null) queryDef = queryDef.WithParameter("@tool", tool);
         if (since is not null) queryDef = queryDef.WithParameter("@since", since.Value);
 
         var options = new QueryRequestOptions { MaxItemCount = pageSize };

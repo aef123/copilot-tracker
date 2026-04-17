@@ -4,6 +4,7 @@ import type { Session, PagedResult } from "./types";
 export interface ListSessionsParams {
   machineId?: string;
   status?: string;
+  tool?: string;
   since?: string;
   continuationToken?: string;
   pageSize?: number;
@@ -13,6 +14,7 @@ export async function listSessions(params: ListSessionsParams = {}): Promise<Pag
   const searchParams = new URLSearchParams();
   if (params.machineId) searchParams.set("machineId", params.machineId);
   if (params.status) searchParams.set("status", params.status);
+  if (params.tool) searchParams.set("tool", params.tool);
   if (params.since) searchParams.set("since", params.since);
   if (params.continuationToken) searchParams.set("continuationToken", params.continuationToken);
   if (params.pageSize) searchParams.set("pageSize", params.pageSize.toString());
