@@ -12,7 +12,7 @@
   padding: 0 16px;
   height: 48px;
   background: var(--bg-surface);
-  border-bottom: 3px solid var(--border);
+  border-bottom: 5px solid var(--border);
   border-image: var(--header-accent, none);
   border-image-slice: 1;
 }
@@ -638,6 +638,31 @@ h2 {
   padding: 40px 20px;
   color: var(--text-dim);
   font-size: 13px;
+}
+
+/* ========== Pride Theme Flag Accents ========== */
+[data-theme="pride"] .session-card,
+[data-theme="progress-pride"] .session-card,
+[data-theme="trans-pride"] .session-card {
+  border-left: 4px solid transparent;
+  border-image: var(--flag-stripe) 1;
+  border-image-width: 0 0 0 4px;
+}
+
+[data-theme="pride"] .data-table,
+[data-theme="progress-pride"] .data-table,
+[data-theme="trans-pride"] .data-table {
+  border-left: 4px solid transparent;
+  border-image: var(--flag-stripe) 1;
+  border-image-width: 0 0 0 4px;
+}
+
+[data-theme="pride"] .detail-card,
+[data-theme="progress-pride"] .detail-card,
+[data-theme="trans-pride"] .detail-card {
+  border-left: 4px solid transparent;
+  border-image: var(--flag-stripe) 1;
+  border-image-width: 0 0 0 4px;
 }
 
 /* ========== Mobile Responsive ========== */
