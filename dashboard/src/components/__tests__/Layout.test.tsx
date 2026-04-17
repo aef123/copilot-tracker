@@ -35,7 +35,7 @@ describe("Layout", () => {
 
   it("renders navigation links", () => {
     renderLayout();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Grid" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sessions" })).toBeInTheDocument();
   });
 
@@ -66,9 +66,9 @@ describe("Layout", () => {
     expect(screen.getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
   });
 
-  it("Dashboard link points to root", () => {
+  it("Grid link points to root", () => {
     renderLayout();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Grid" })).toHaveAttribute("href", "/");
   });
 
   it("Sessions link points to /sessions", () => {

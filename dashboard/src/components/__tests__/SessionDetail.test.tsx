@@ -74,7 +74,7 @@ describe("SessionDetail", () => {
     expect(screen.getByText("machine-1")).toBeInTheDocument();
     expect(screen.getByText("org/repo")).toBeInTheDocument();
     expect(screen.getByText("main")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("Idle")).toBeInTheDocument();
   });
 
   it("renders error state on API failure", async () => {

@@ -327,7 +327,7 @@ public class SessionServiceTests
     [Fact]
     public async Task ListAsync_ReturnsEmptyPage_WhenNoSessions()
     {
-        _sessionRepo.Setup(r => r.ListAsync("m1", null, null, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync("m1", null, null, null, null, 50, null))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
 
         var result = await _sut.ListAsync("m1", null, null, null, null, 50);
@@ -340,12 +340,14 @@ public class SessionServiceTests
     public async Task ListAsync_ForwardsPaginationParameters()
     {
         var since = DateTime.UtcNow.AddDays(-1);
-        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, null, since, "token", 10))
+        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, null, since, "token", 10, null))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = [new Session()],
                 ContinuationToken = "next"
             });
+        _promptRepo.Setup(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
 
         var result = await _sut.ListAsync("m1", SessionStatus.Active, null, since, "token", 10);
 
@@ -476,16 +478,89 @@ public class SessionServiceTests
     public async Task ListAsync_PassesToolToRepository()
     {
         var since = DateTime.UtcNow.AddDays(-1);
-        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25))
+        _sessionRepo.Setup(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25, null))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = [new Session { Id = "s1", Tool = "claude" }],
                 ContinuationToken = null
             });
+        _promptRepo.Setup(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
 
         var result = await _sut.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25);
 
         result.Items.Should().HaveCount(1);
-        _sessionRepo.Verify(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25), Times.Once);
+        _sessionRepo.Verify(r => r.ListAsync("m1", SessionStatus.Active, "claude", since, "tok", 25, null), Times.Once);
+    }
+
+    // --- HasActivePrompt enrichment tests ---
+
+    [Fact]
+    public async Task ListAsync_SetsHasActivePromptTrue_WhenSessionHasStartedPrompt()
+    {
+        var sessions = new PagedResult<Session>
+        {
+            Items = [new Session { Id = "s1", MachineId = "m1" }, new Session { Id = "s2", MachineId = "m2" }],
+            ContinuationToken = null
+        };
+        _sessionRepo.Setup(r => r.ListAsync(null, null, null, null, null, 50, null))
+            .ReturnsAsync(sessions);
+        _promptRepo.Setup(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string> { "s1" });
+
+        var result = await _sut.ListAsync(null, null, null, null, null, 50);
+
+        result.Items[0].HasActivePrompt.Should().BeTrue();
+        result.Items[1].HasActivePrompt.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ListAsync_SetsHasActivePromptFalse_WhenNoActivePrompts()
+    {
+        var sessions = new PagedResult<Session>
+        {
+            Items = [new Session { Id = "s1", MachineId = "m1" }],
+            ContinuationToken = null
+        };
+        _sessionRepo.Setup(r => r.ListAsync(null, null, null, null, null, 50, null))
+            .ReturnsAsync(sessions);
+        _promptRepo.Setup(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        var result = await _sut.ListAsync(null, null, null, null, null, 50);
+
+        result.Items[0].HasActivePrompt.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ListAsync_SkipsEnrichment_WhenNoSessions()
+    {
+        _sessionRepo.Setup(r => r.ListAsync(null, null, null, null, null, 50, null))
+            .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
+
+        var result = await _sut.ListAsync(null, null, null, null, null, 50);
+
+        result.Items.Should().BeEmpty();
+        _promptRepo.Verify(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListAsync_PassesCorrectSessionIds_ToPromptRepository()
+    {
+        var sessions = new PagedResult<Session>
+        {
+            Items = [new Session { Id = "a" }, new Session { Id = "b" }, new Session { Id = "c" }],
+            ContinuationToken = null
+        };
+        _sessionRepo.Setup(r => r.ListAsync(null, null, null, null, null, 50, null))
+            .ReturnsAsync(sessions);
+        _promptRepo.Setup(r => r.GetSessionIdsWithActivePromptsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string> { "b" });
+
+        await _sut.ListAsync(null, null, null, null, null, 50);
+
+        _promptRepo.Verify(r => r.GetSessionIdsWithActivePromptsAsync(
+            It.Is<IEnumerable<string>>(ids => ids.Count() == 3 && ids.Contains("a") && ids.Contains("b") && ids.Contains("c"))),
+            Times.Once);
     }
 }

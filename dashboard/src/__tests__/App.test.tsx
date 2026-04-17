@@ -105,10 +105,10 @@ describe("App (real component)", () => {
   });
 
   describe("authenticated routes", () => {
-    it("renders HealthDashboard at /", async () => {
+    it("renders SessionGrid at /", async () => {
       testEntries = ["/"];
       render(<App />);
-      expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Sessions Overview" })).toBeInTheDocument();
     });
 
     it("renders SessionList at /sessions", async () => {
@@ -150,7 +150,7 @@ describe("App (real component)", () => {
       testEntries = ["/"];
       render(<App />);
       expect(await screen.findByText("Copilot Session Tracker")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Grid" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Sessions" })).toBeInTheDocument();
     });
   });
@@ -219,24 +219,24 @@ describe("App (real component)", () => {
   });
 
   describe("navigation between routes", () => {
-    it("navigating from Dashboard to Sessions works", async () => {
+    it("navigating from Grid to Sessions works", async () => {
       const user = userEvent.setup();
       testEntries = ["/"];
       render(<App />);
 
-      expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Sessions Overview" })).toBeInTheDocument();
       await user.click(screen.getByRole("link", { name: "Sessions" }));
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
     });
 
-    it("navigating from Sessions back to Dashboard works", async () => {
+    it("navigating from Sessions back to Grid works", async () => {
       const user = userEvent.setup();
       testEntries = ["/sessions"];
       render(<App />);
 
       expect(await screen.findByRole("heading", { name: "Sessions" })).toBeInTheDocument();
-      await user.click(screen.getByRole("link", { name: "Dashboard" }));
-      expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+      await user.click(screen.getByRole("link", { name: "Grid" }));
+      expect(await screen.findByRole("heading", { name: "Sessions Overview" })).toBeInTheDocument();
     });
 
     it("navigating from SessionDetail back to sessions list works", async () => {

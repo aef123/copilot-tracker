@@ -66,15 +66,26 @@ public class CosmosSessionRepository : ISessionRepository
         string? tool = null,
         DateTime? since = null,
         string? continuationToken = null,
-        int pageSize = 50)
+        int pageSize = 50,
+        string? statusGroup = null)
     {
         var clauses = new List<string>();
 
         if (machineId is not null)
             clauses.Add("c.machineId = @machineId");
 
-        if (status is not null)
+        if (statusGroup is not null)
+        {
+            // statusGroup takes precedence over status
+            if (statusGroup.Equals("live", StringComparison.OrdinalIgnoreCase))
+                clauses.Add("(c.status = @statusLive1 OR c.status = @statusLive2)");
+            else if (statusGroup.Equals("stale", StringComparison.OrdinalIgnoreCase))
+                clauses.Add("c.status = @statusStale");
+        }
+        else if (status is not null)
+        {
             clauses.Add("c.status = @status");
+        }
 
         if (tool is not null)
         {
@@ -93,7 +104,22 @@ public class CosmosSessionRepository : ISessionRepository
         var queryDef = new QueryDefinition(sql);
 
         if (machineId is not null) queryDef = queryDef.WithParameter("@machineId", machineId);
-        if (status is not null) queryDef = queryDef.WithParameter("@status", status);
+        if (statusGroup is not null)
+        {
+            if (statusGroup.Equals("live", StringComparison.OrdinalIgnoreCase))
+            {
+                queryDef = queryDef.WithParameter("@statusLive1", SessionStatus.Active);
+                queryDef = queryDef.WithParameter("@statusLive2", SessionStatus.Idle);
+            }
+            else if (statusGroup.Equals("stale", StringComparison.OrdinalIgnoreCase))
+            {
+                queryDef = queryDef.WithParameter("@statusStale", SessionStatus.Stale);
+            }
+        }
+        else if (status is not null)
+        {
+            queryDef = queryDef.WithParameter("@status", status);
+        }
         if (tool is not null) queryDef = queryDef.WithParameter("@tool", tool);
         if (since is not null) queryDef = queryDef.WithParameter("@since", since.Value);
 

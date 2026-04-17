@@ -81,9 +81,22 @@ public class SessionService
     }
 
     public virtual async Task<PagedResult<Session>> ListAsync(
-        string? machineId, string? status, string? tool, DateTime? since, string? continuationToken, int pageSize)
+        string? machineId, string? status, string? tool, DateTime? since, string? continuationToken, int pageSize, string? statusGroup = null)
     {
-        return await _sessions.ListAsync(machineId, status, tool, since, continuationToken, pageSize);
+        var result = await _sessions.ListAsync(machineId, status, tool, since, continuationToken, pageSize, statusGroup);
+
+        if (result.Items.Count > 0)
+        {
+            var sessionIds = result.Items.Select(s => s.Id);
+            var activePromptSessionIds = await _prompts.GetSessionIdsWithActivePromptsAsync(sessionIds);
+
+            foreach (var session in result.Items)
+            {
+                session.HasActivePrompt = activePromptSessionIds.Contains(session.Id);
+            }
+        }
+
+        return result;
     }
 
     public virtual async Task UpdateSessionTitleAsync(string sessionId, string machineId, string title)

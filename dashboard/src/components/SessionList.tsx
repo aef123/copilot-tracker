@@ -2,9 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { listSessions } from "../api";
 import type { Session } from "../api";
+import { getDisplayStatus, getTitleColorClass } from "../utils/sessionStatus";
 
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge badge-${status}`}>{status}</span>;
+  return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
 }
 
 function ToolBadge({ tool }: { tool?: string }) {
@@ -16,12 +17,25 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
+function formatRepository(repo: string | undefined): string {
+  if (!repo) return "-";
+  let name = repo;
+  if (name.endsWith(".git")) {
+    name = name.slice(0, -4);
+  }
+  const lastSlash = name.lastIndexOf("/");
+  if (lastSlash >= 0) {
+    name = name.substring(lastSlash + 1);
+  }
+  return name || "-";
+}
+
 export function SessionList() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [toolFilter, setToolFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
   const [continuationToken, setContinuationToken] = useState<string | undefined>();
@@ -31,12 +45,17 @@ export function SessionList() {
   const fetchSessions = useCallback(
     async (token?: string) => {
       try {
-        const result = await listSessions({
-          status: statusFilter || undefined,
+        const params: Record<string, string | undefined> = {
           tool: toolFilter || undefined,
           machineId: machineFilter || undefined,
           continuationToken: token,
-        });
+        };
+        if (statusFilter === "active") {
+          params.statusGroup = "live";
+        } else if (statusFilter === "stale") {
+          params.statusGroup = "stale";
+        }
+        const result = await listSessions(params);
 
         if (token) {
           setSessions((prev) => [...prev, ...result.items]);
@@ -60,7 +79,23 @@ export function SessionList() {
     setLoading(true);
     setSessions([]);
     setContinuationToken(undefined);
-    fetchSessions();
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const refresh = async () => {
+      await fetchSessions();
+      if (!cancelled) {
+        timeoutId = setTimeout(refresh, 60_000);
+      }
+    };
+
+    refresh();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [fetchSessions]);
 
   const handleLoadMore = () => {
@@ -80,11 +115,9 @@ export function SessionList() {
           onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter by status"
         >
-          <option value="">All statuses</option>
           <option value="active">Active</option>
-          <option value="idle">Idle</option>
-          <option value="closed">Closed</option>
           <option value="stale">Stale</option>
+          <option value="all">All</option>
         </select>
         <select
           value={toolFilter}
@@ -128,12 +161,12 @@ export function SessionList() {
                   onClick={() => navigate(`/sessions/${encodeURIComponent(s.machineId)}/${encodeURIComponent(s.id)}`)}
                 >
                   <td>
-                    <StatusBadge status={s.status} />
+                    <StatusBadge status={getDisplayStatus(s)} />
                   </td>
-                  <td>{s.title || "-"}</td>
+                  <td className={getTitleColorClass(s)}>{s.title || "N/A"}</td>
                   <td>{s.machineId}</td>
                   <td><ToolBadge tool={s.tool} /></td>
-                  <td>{s.repository || "-"}</td>
+                  <td>{formatRepository(s.repository)}</td>
                   <td>{s.branch || "-"}</td>
                   <td>{formatDate(s.createdAt)}</td>
                   <td>{formatDate(s.lastHeartbeat)}</td>

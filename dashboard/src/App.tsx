@@ -2,7 +2,6 @@ import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-reac
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useAuth } from "./auth/useAuth";
 import { Layout } from "./components/Layout";
-import { HealthDashboard } from "./components/HealthDashboard";
 import { SessionList } from "./components/SessionList";
 import { SessionGrid } from "./components/SessionGrid";
 import { SessionDetail } from "./components/SessionDetail";
@@ -30,7 +29,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
-              <Route path="/" element={<HealthDashboard />} />
+              <Route path="/" element={<SessionGrid />} />
               <Route path="/sessions" element={<SessionList />} />
               <Route path="/sessions/grid" element={<SessionGrid />} />
               <Route path="/sessions/:machineId/:id" element={<SessionDetail />} />

@@ -48,9 +48,9 @@ describe("SessionList", () => {
     renderWithRouter();
 
     expect(await screen.findByText("machine-a")).toBeInTheDocument();
-    expect(screen.getByText("org/repo")).toBeInTheDocument();
+    expect(screen.getByText("repo")).toBeInTheDocument();
     expect(screen.getByText("main")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("Idle")).toBeInTheDocument();
   });
 
   it("shows empty state when no sessions", async () => {
@@ -214,18 +214,18 @@ describe("SessionList", () => {
 
       await screen.findByText("No sessions found.");
       expect(mockListSessions).toHaveBeenCalledWith({
-        status: undefined,
+        statusGroup: "live",
         tool: undefined,
         machineId: undefined,
         continuationToken: undefined,
       });
 
       mockListSessions.mockClear();
-      await user.selectOptions(screen.getByLabelText("Filter by status"), "active");
+      await user.selectOptions(screen.getByLabelText("Filter by status"), "stale");
 
       await waitFor(() => {
         expect(mockListSessions).toHaveBeenCalledWith(
-          expect.objectContaining({ status: "active" })
+          expect.objectContaining({ statusGroup: "stale" })
         );
       });
     });

@@ -12,7 +12,9 @@
   padding: 0 16px;
   height: 48px;
   background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 3px solid var(--border);
+  border-image: var(--header-accent, none);
+  border-image-slice: 1;
 }
 
 .layout-header h1 {
@@ -54,6 +56,27 @@
   gap: 10px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.theme-select {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.theme-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.theme-select option {
+  background: var(--bg-surface);
+  color: var(--text);
 }
 
 .layout-user button {
@@ -194,6 +217,17 @@
   background: var(--bg-hover);
 }
 
+.data-table th:nth-child(2),
+.data-table td:nth-child(2) {
+  width: 30%;
+}
+
+.data-table th:nth-child(5),
+.data-table td:nth-child(5) {
+  width: 10%;
+  max-width: 120px;
+}
+
 /* ========== Status Badges ========== */
 .badge {
   display: inline-block;
@@ -211,9 +245,12 @@
   color: var(--green);
 }
 
-.badge-done,
-.badge-completed {
+.badge-done {
   color: var(--text-muted);
+}
+
+.badge-responding {
+  color: var(--accent);
 }
 
 .badge-started,
@@ -234,6 +271,15 @@
 .badge-failed,
 .badge-error {
   color: var(--red);
+}
+
+/* Title color classes */
+.title-responding {
+  color: var(--accent);
+}
+
+.title-idle {
+  color: var(--green);
 }
 
 .badge-status_change {
@@ -594,8 +640,9 @@ h2 {
   font-size: 13px;
 }
 
-/* ========== Responsive ========== */
+/* ========== Mobile Responsive ========== */
 @media (max-width: 768px) {
+  /* --- Header --- */
   .layout-header {
     flex-wrap: wrap;
     height: auto;
@@ -603,27 +650,150 @@ h2 {
     gap: 8px;
   }
 
+  .layout-header h1 {
+    font-size: 13px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .layout-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .layout-nav a {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .layout-user {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .theme-select {
+    font-size: 11px;
+  }
+
+  /* --- Content --- */
   .layout-content {
+    padding: 12px 8px;
+    max-width: 100%;
+  }
+
+  h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* --- Filters --- */
+  .filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filters select,
+  .filters input {
+    width: 100%;
+  }
+
+  /* --- Data Tables --- */
+  .data-table {
+    font-size: 12px;
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+
+  /* Hide less important columns on mobile */
+  .data-table th:nth-child(3),
+  .data-table td:nth-child(3),
+  .data-table th:nth-child(6),
+  .data-table td:nth-child(6) {
+    display: none;
+  }
+
+  /* --- Session Grid --- */
+  .session-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .session-card {
     padding: 12px;
   }
 
-  .health-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .session-card-title {
+    font-size: 1rem;
   }
 
+  .session-card-machine {
+    font-size: 13px;
+  }
+
+  /* --- Detail Pages --- */
   .detail-grid {
     grid-template-columns: 1fr;
   }
 
-  .data-table {
-    font-size: 12px;
+  .detail-card {
+    padding: 12px;
   }
 
-  .session-grid {
-    grid-template-columns: 1fr;
+  /* --- Charts --- */
+  .health-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .charts-row {
     grid-template-columns: 1fr;
+  }
+
+  /* --- Login --- */
+  .login-page h1 {
+    font-size: 20px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .layout-header h1 {
+    font-size: 12px;
+  }
+
+  .layout-nav a {
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+
+  .data-table {
+    font-size: 11px;
+  }
+
+  .data-table th:nth-child(4),
+  .data-table td:nth-child(4),
+  .data-table th:nth-child(7),
+  .data-table td:nth-child(7) {
+    display: none;
+  }
+
+  .session-card {
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .session-card-meta {
+    flex-direction: column;
+    gap: 4px;
   }
 }

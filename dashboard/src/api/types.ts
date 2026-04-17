@@ -10,6 +10,7 @@ export interface Session {
   updatedAt: string;
   lastHeartbeat: string;
   completedAt?: string;
+  hasActivePrompt?: boolean;
   summary?: string;
   userId: string;
   createdBy: string;

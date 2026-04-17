@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getSession, listPrompts } from "../api";
 import type { Session, Prompt } from "../api";
+import { getDisplayStatus, getTitleColorClass } from "../utils/sessionStatus";
 
 const PROMPT_PREVIEW_LENGTH = 80;
 
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge badge-${status}`}>{status}</span>;
+  return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
 }
 
 function ToolBadge({ tool }: { tool?: string }) {
@@ -52,11 +53,16 @@ export function SessionDetail() {
   if (error) return <div className="error-message">{error}</div>;
   if (!session) return <div className="empty-state">Session not found.</div>;
 
-  const fields: { label: string; value: string; badge?: boolean; toolBadge?: boolean }[] = [
+  const hasActivePrompt = prompts.some(p => p.status === "started");
+  const enrichedSession = { ...session, hasActivePrompt };
+  const displayStatus = getDisplayStatus(enrichedSession);
+  const titleColorClass = getTitleColorClass(enrichedSession);
+
+  const fields: { label: string; value: string; badge?: boolean; toolBadge?: boolean; className?: string }[] = [
     { label: "Session ID", value: session.id },
-    { label: "Title", value: session.title || "-" },
+    { label: "Title", value: session.title || "N/A", className: titleColorClass },
     { label: "Machine ID", value: session.machineId },
-    { label: "Status", value: session.status, badge: true },
+    { label: "Status", value: displayStatus, badge: true },
     { label: "Repository", value: session.repository || "-" },
     { label: "Branch", value: session.branch || "-" },
     { label: "Tool", value: session.tool || "copilot", toolBadge: true },
@@ -82,7 +88,7 @@ export function SessionDetail() {
             <div key={f.label} className="detail-field">
               <div className="label">{f.label}</div>
               <div className="value">
-                {f.badge ? <StatusBadge status={String(f.value)} /> : f.toolBadge ? <ToolBadge tool={String(f.value)} /> : f.value}
+                {f.badge ? <StatusBadge status={String(f.value)} /> : f.toolBadge ? <ToolBadge tool={String(f.value)} /> : <span className={f.className || ""}>{f.value}</span>}
               </div>
             </div>
           ))}

@@ -123,6 +123,31 @@ public class CosmosPromptRepository : IPromptRepository
             _container, queryDef, options, continuationToken);
     }
 
+    public async Task<IReadOnlySet<string>> GetSessionIdsWithActivePromptsAsync(IEnumerable<string> sessionIds)
+    {
+        var ids = sessionIds.ToList();
+        if (ids.Count == 0)
+            return new HashSet<string>();
+
+        // Build parameterized IN clause
+        var paramNames = ids.Select((_, i) => $"@sid{i}").ToList();
+        var sql = $"SELECT DISTINCT VALUE c.sessionId FROM c WHERE c.status = 'started' AND c.sessionId IN ({string.Join(", ", paramNames)})";
+        var queryDef = new QueryDefinition(sql);
+        for (int i = 0; i < ids.Count; i++)
+            queryDef = queryDef.WithParameter($"@sid{i}", ids[i]);
+
+        var result = new HashSet<string>();
+        using var iterator = _container.GetItemQueryIterator<string>(queryDef);
+        while (iterator.HasMoreResults)
+        {
+            var response = await iterator.ReadNextAsync();
+            foreach (var sid in response)
+                result.Add(sid);
+        }
+
+        return result;
+    }
+
     public async Task<int> CountByStatusAsync(string status)
     {
         var query = new QueryDefinition(

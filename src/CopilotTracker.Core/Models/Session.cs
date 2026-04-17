@@ -16,6 +16,14 @@ public class Session
     public string? Summary { get; set; }
     public string UserId { get; set; } = string.Empty;
     public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Enrichment-only field set by the list endpoint. Null when read from Cosmos directly.
+    /// Cosmos ignores null values on write, so this won't pollute stored documents.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("hasActivePrompt")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? HasActivePrompt { get; set; }
 }
 
 public static class SessionStatus

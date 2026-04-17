@@ -11,4 +11,5 @@ public interface IPromptRepository
     Task<IReadOnlyList<Prompt>> GetBySessionAsync(string sessionId);
     Task<PagedResult<Prompt>> ListAsync(string? sessionId = null, string? status = null, DateTime? since = null, string? continuationToken = null, int pageSize = 50);
     Task<int> CountByStatusAsync(string status);
+    Task<IReadOnlySet<string>> GetSessionIdsWithActivePromptsAsync(IEnumerable<string> sessionIds);
 }
