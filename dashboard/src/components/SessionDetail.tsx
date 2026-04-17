@@ -98,6 +98,7 @@ export function SessionDetail() {
             <thead>
               <tr>
                 <th>Status</th>
+                <th>Title</th>
                 <th>Prompt</th>
                 <th>Created</th>
                 <th>Result / Error</th>
@@ -114,12 +115,13 @@ export function SessionDetail() {
                   <td>
                     <StatusBadge status={p.status} />
                   </td>
+                  <td>{p.title || "-"}</td>
                   <td className="cell-prompt-preview">
                     {p.promptText
                       ? p.promptText.length > PROMPT_PREVIEW_LENGTH
                         ? p.promptText.slice(0, PROMPT_PREVIEW_LENGTH) + "..."
                         : p.promptText
-                      : p.title || "-"}
+                      : "-"}
                   </td>
                   <td>{formatDate(p.createdAt)}</td>
                   <td>{p.result || p.errorMessage || "-"}</td>
