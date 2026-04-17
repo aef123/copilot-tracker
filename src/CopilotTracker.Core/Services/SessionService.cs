@@ -7,13 +7,13 @@ using Microsoft.Extensions.Logging;
 public class SessionService
 {
     private readonly ISessionRepository _sessions;
-    private readonly ITaskLogRepository _logs;
+    private readonly IPromptRepository _prompts;
     private readonly ILogger<SessionService> _logger;
 
-    public SessionService(ISessionRepository sessions, ITaskLogRepository logs, ILogger<SessionService> logger)
+    public SessionService(ISessionRepository sessions, IPromptRepository prompts, ILogger<SessionService> logger)
     {
         _sessions = sessions;
-        _logs = logs;
+        _prompts = prompts;
         _logger = logger;
     }
 
@@ -160,6 +160,19 @@ public class SessionService
 
             foreach (var session in page.Items)
             {
+                // Check if the session has recent prompt activity before marking stale
+                if (await HasRecentActivityAsync(session.Id, cutoff))
+                {
+                    // Session has recent activity, refresh its heartbeat instead
+                    session.LastHeartbeat = DateTime.UtcNow;
+                    session.UpdatedAt = DateTime.UtcNow;
+                    await _sessions.UpdateAsync(session);
+                    _logger.LogDebug(
+                        "Session {SessionId} has recent prompt activity, refreshing heartbeat",
+                        session.Id);
+                    continue;
+                }
+
                 session.Status = SessionStatus.Stale;
                 session.UpdatedAt = DateTime.UtcNow;
                 await _sessions.UpdateAsync(session);
@@ -173,5 +186,20 @@ public class SessionService
             _logger.LogInformation("Cleaned up {Count} stale sessions", totalCleaned);
 
         return totalCleaned;
+    }
+
+    private async Task<bool> HasRecentActivityAsync(string sessionId, DateTime cutoff)
+    {
+        var prompts = await _prompts.GetBySessionAsync(sessionId);
+
+        // If any prompt is still active (started), the session is definitely not stale
+        if (prompts.Any(p => p.Status == "started"))
+            return true;
+
+        // If any prompt was created or updated after the cutoff, session is active
+        if (prompts.Any(p => p.UpdatedAt > cutoff || p.CreatedAt > cutoff))
+            return true;
+
+        return false;
     }
 }

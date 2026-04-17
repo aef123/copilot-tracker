@@ -23,9 +23,14 @@ public class StaleSessionCleanupServiceTests
             .Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), It.IsAny<string?>()))
             .ReturnsAsync(new PagedResult<Session> { Items = [] });
 
+        var promptRepo = new Mock<IPromptRepository>();
+        promptRepo
+            .Setup(r => r.GetBySessionAsync(It.IsAny<string>()))
+            .ReturnsAsync(new List<Prompt>());
+
         var services = new ServiceCollection();
         services.AddSingleton(sessionRepo.Object);
-        services.AddSingleton(Mock.Of<ITaskLogRepository>());
+        services.AddSingleton(promptRepo.Object);
         services.AddSingleton<ILogger<SessionService>>(NullLogger<SessionService>.Instance);
         services.AddScoped<SessionService>();
 
@@ -179,9 +184,14 @@ public class StaleSessionCleanupServiceTests
             .Setup(r => r.UpdateAsync(It.IsAny<Session>()))
             .ReturnsAsync((Session s) => s);
 
+        var promptRepo = new Mock<IPromptRepository>();
+        promptRepo
+            .Setup(r => r.GetBySessionAsync(It.IsAny<string>()))
+            .ReturnsAsync(new List<Prompt>());
+
         var services = new ServiceCollection();
         services.AddSingleton(sessionRepo.Object);
-        services.AddSingleton(Mock.Of<ITaskLogRepository>());
+        services.AddSingleton(promptRepo.Object);
         services.AddSingleton<ILogger<SessionService>>(NullLogger<SessionService>.Instance);
         services.AddScoped<SessionService>();
 

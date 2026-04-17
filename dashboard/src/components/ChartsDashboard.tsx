@@ -114,6 +114,56 @@ function StackedBarChart({ data, keys, colors }: { data: Record<string, unknown>
   );
 }
 
+function DailyHistogram({ prompts }: { prompts: Prompt[] }) {
+  if (prompts.length === 0) return <div className="chart-empty">No data</div>;
+
+  const counts = new Map<string, number>();
+  for (const p of prompts) {
+    const day = p.createdAt.slice(0, 10);
+    counts.set(day, (counts.get(day) || 0) + 1);
+  }
+
+  const sorted = Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+  // Fill in missing days so the chart has no gaps
+  const data: { date: string; prompts: number }[] = [];
+  if (sorted.length > 0) {
+    const start = new Date(sorted[0][0]);
+    const end = new Date(sorted[sorted.length - 1][0]);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().slice(0, 10);
+      data.push({ date: key, prompts: counts.get(key) || 0 });
+    }
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={data} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#30363d" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: "#8b949e", fontSize: 11 }}
+          axisLine={{ stroke: "#30363d" }}
+          tickFormatter={(v: string) => {
+            const parts = v.split("-");
+            return `${parts[1]}/${parts[2]}`;
+          }}
+        />
+        <YAxis
+          tick={{ fill: "#8b949e", fontSize: 12 }}
+          axisLine={{ stroke: "#30363d" }}
+          allowDecimals={false}
+        />
+        <Tooltip
+          contentStyle={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 6, color: "#e6edf3" }}
+          labelFormatter={(v) => String(v)}
+        />
+        <Bar dataKey="prompts" fill="#58a6ff" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function ChartsDashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -193,6 +243,12 @@ export function ChartsDashboard() {
   return (
     <div>
       <h2>Analytics</h2>
+
+      <div className="charts-row-full">
+        <ChartCard title="Prompts per Day">
+          <DailyHistogram prompts={prompts} />
+        </ChartCard>
+      </div>
 
       <div className="charts-row">
         <ChartCard title="Sessions by Status">

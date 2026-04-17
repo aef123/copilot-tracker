@@ -19,7 +19,7 @@ public class SessionsControllerTests
     {
         _sessionService = new Mock<SessionService>(
             Mock.Of<Core.Interfaces.ISessionRepository>(),
-            Mock.Of<Core.Interfaces.ITaskLogRepository>(),
+            Mock.Of<Core.Interfaces.IPromptRepository>(),
             Mock.Of<Microsoft.Extensions.Logging.ILogger<SessionService>>());
 
         _controller = new SessionsController(_sessionService.Object);

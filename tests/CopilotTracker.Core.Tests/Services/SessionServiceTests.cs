@@ -10,12 +10,12 @@ using Moq;
 public class SessionServiceTests
 {
     private readonly Mock<ISessionRepository> _sessionRepo = new();
-    private readonly Mock<ITaskLogRepository> _logRepo = new();
+    private readonly Mock<IPromptRepository> _promptRepo = new();
     private readonly SessionService _sut;
 
     public SessionServiceTests()
     {
-        _sut = new SessionService(_sessionRepo.Object, _logRepo.Object, NullLogger<SessionService>.Instance);
+        _sut = new SessionService(_sessionRepo.Object, _promptRepo.Object, NullLogger<SessionService>.Instance);
     }
 
     [Fact]
@@ -140,6 +140,9 @@ public class SessionServiceTests
             .ReturnsAsync(new PagedResult<Session> { Items = staleSessions, ContinuationToken = null });
         _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))
             .ReturnsAsync((Session s) => s);
+        // No recent prompts, so sessions are truly stale
+        _promptRepo.Setup(r => r.GetBySessionAsync(It.IsAny<string>()))
+            .ReturnsAsync(new List<Prompt>());
 
         var count = await _sut.CleanupStaleSessionsAsync(TimeSpan.FromMinutes(5));
 
@@ -167,6 +170,8 @@ public class SessionServiceTests
             .ReturnsAsync(page2);
         _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))
             .ReturnsAsync((Session s) => s);
+        _promptRepo.Setup(r => r.GetBySessionAsync(It.IsAny<string>()))
+            .ReturnsAsync(new List<Prompt>());
 
         var count = await _sut.CleanupStaleSessionsAsync(TimeSpan.FromMinutes(5));
 
@@ -358,6 +363,50 @@ public class SessionServiceTests
 
         count.Should().Be(0);
         _sessionRepo.Verify(r => r.UpdateAsync(It.IsAny<Session>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CleanupStaleSessionsAsync_SkipsSessionWithActivePrompt()
+    {
+        var staleSessions = new List<Session>
+        {
+            new() { Id = "s1", MachineId = "m1", Status = SessionStatus.Active }
+        };
+
+        _sessionRepo.Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), null, 50))
+            .ReturnsAsync(new PagedResult<Session> { Items = staleSessions, ContinuationToken = null });
+        _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))
+            .ReturnsAsync((Session s) => s);
+        // Session has an active prompt, so it should NOT be marked stale
+        _promptRepo.Setup(r => r.GetBySessionAsync("s1"))
+            .ReturnsAsync(new List<Prompt> { new() { Status = "started", CreatedAt = DateTime.UtcNow } });
+
+        var count = await _sut.CleanupStaleSessionsAsync(TimeSpan.FromMinutes(5));
+
+        count.Should().Be(0);
+        // Session should have been refreshed, not marked stale
+        _sessionRepo.Verify(r => r.UpdateAsync(It.Is<Session>(s => s.Status == SessionStatus.Active)), Times.Once);
+    }
+
+    [Fact]
+    public async Task CleanupStaleSessionsAsync_SkipsSessionWithRecentPromptActivity()
+    {
+        var staleSessions = new List<Session>
+        {
+            new() { Id = "s1", MachineId = "m1", Status = SessionStatus.Active }
+        };
+
+        _sessionRepo.Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), null, 50))
+            .ReturnsAsync(new PagedResult<Session> { Items = staleSessions, ContinuationToken = null });
+        _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))
+            .ReturnsAsync((Session s) => s);
+        // Prompt completed recently (within threshold)
+        _promptRepo.Setup(r => r.GetBySessionAsync("s1"))
+            .ReturnsAsync(new List<Prompt> { new() { Status = "done", UpdatedAt = DateTime.UtcNow.AddMinutes(-2) } });
+
+        var count = await _sut.CleanupStaleSessionsAsync(TimeSpan.FromMinutes(5));
+
+        count.Should().Be(0);
     }
 
     [Fact]
