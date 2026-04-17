@@ -734,10 +734,10 @@ h2 {
   color: #550000;
 }
 [data-theme="hot-dog-stand"] .title-responding {
-  color: var(--hds-light);
+  color: #0000CC;
 }
 [data-theme="hot-dog-stand"] .title-idle {
-  color: #88FF88;
+  color: #006600;
 }
 
 /* ========== Pride Theme Flag Accents ========== */
