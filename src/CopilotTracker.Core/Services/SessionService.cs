@@ -87,12 +87,19 @@ public class SessionService
 
         if (result.Items.Count > 0)
         {
-            var sessionIds = result.Items.Select(s => s.Id);
-            var activePromptSessionIds = await _prompts.GetSessionIdsWithActivePromptsAsync(sessionIds);
-
-            foreach (var session in result.Items)
+            try
             {
-                session.HasActivePrompt = activePromptSessionIds.Contains(session.Id);
+                var sessionIds = result.Items.Select(s => s.Id);
+                var activePromptSessionIds = await _prompts.GetSessionIdsWithActivePromptsAsync(sessionIds);
+
+                foreach (var session in result.Items)
+                {
+                    session.HasActivePrompt = activePromptSessionIds.Contains(session.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enrich sessions with active prompt status; defaulting to null");
             }
         }
 
