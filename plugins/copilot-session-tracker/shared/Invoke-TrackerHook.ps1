@@ -111,15 +111,14 @@ try {
     }
     
     # Parse optional title from prompt text (sessionStart and userPromptSubmitted)
+    # Matches "Title: <value>" anywhere at the end of the prompt text
     if ($HookType -eq "sessionStart" -or $HookType -eq "userPromptSubmitted") {
         $promptField = if ($HookType -eq "sessionStart") { "initialPrompt" } else { "prompt" }
         $promptText = $payload.$promptField
 
-        if ($promptText -and $promptText -match '(?:^|\r?\n)\s*[Tt]itle:\s*(.+?)\s*$') {
+        if ($promptText -and $promptText -match '\b[Tt]itle:\s*(.+?)\s*$') {
             $title = $Matches[1].Trim()
-            # Strip the title line from the prompt
-            $cleanedPrompt = $promptText -replace '(?:\r?\n)\s*[Tt]itle:\s*.+?\s*$', '' -replace '^\s*[Tt]itle:\s*.+?\s*$', ''
-            $cleanedPrompt = $cleanedPrompt.TrimEnd()
+            $cleanedPrompt = ($promptText -replace '\s*\b[Tt]itle:\s*.+?\s*$', '').TrimEnd()
 
             $payload | Add-Member -NotePropertyName "title" -NotePropertyValue $title -Force
             $payload | Add-Member -NotePropertyName $promptField -NotePropertyValue $cleanedPrompt -Force

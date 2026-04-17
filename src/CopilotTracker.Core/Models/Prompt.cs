@@ -5,6 +5,7 @@ public class Prompt
     public string Id { get; set; } = string.Empty;
     public string SessionId { get; set; } = string.Empty;  // Partition key
     public string PromptText { get; set; } = string.Empty;
+    public string? Title { get; set; }
     public string? Cwd { get; set; }
     public string Status { get; set; } = "started";  // "started" | "done"
     public string? Result { get; set; }

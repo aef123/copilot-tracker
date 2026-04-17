@@ -17,13 +17,14 @@ public class PromptService
 
     public virtual async Task<Prompt> CreatePromptAsync(
         string sessionId, string promptText, string? cwd, long hookTimestamp,
-        string userId, string createdBy)
+        string userId, string createdBy, string? title = null)
     {
         var prompt = new Prompt
         {
             Id = Guid.NewGuid().ToString(),
             SessionId = sessionId,
             PromptText = promptText,
+            Title = title,
             Cwd = cwd,
             Status = "started",
             HookTimestamp = hookTimestamp,

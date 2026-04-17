@@ -65,7 +65,7 @@ public class HooksController : ControllerBase
             await _sessionService.UpdateSessionTitleAsync(hook.SessionId, hook.MachineName, hook.Title);
 
         var prompt = await _promptService.CreatePromptAsync(
-            hook.SessionId, hook.Prompt, hook.Cwd, hook.Timestamp, userId, createdBy);
+            hook.SessionId, hook.Prompt, hook.Cwd, hook.Timestamp, userId, createdBy, hook.Title);
         return Ok(new { promptId = prompt.Id });
     }
 
