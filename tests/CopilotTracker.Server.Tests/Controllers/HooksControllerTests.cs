@@ -134,6 +134,25 @@ public class HooksControllerTests
         _sessionService.Verify(s => s.TouchSessionAsync("s1", "m1"), Times.Once);
     }
 
+    [Fact]
+    public async Task UserPromptSubmitted_AlwaysUpdatesTitle_EvenWhenNull()
+    {
+        var prompt = new Prompt { Id = "p1", SessionId = "s1" };
+        _promptService
+            .Setup(s => s.CreatePromptAsync(It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(prompt);
+
+        var hook = new UserPromptSubmittedHook
+        {
+            SessionId = "s1", Prompt = "test", MachineName = "m1", Timestamp = 123, Title = null
+        };
+        await _controller.UserPromptSubmitted(hook);
+
+        _sessionService.Verify(s => s.UpdateSessionTitleAsync("s1", "m1", null), Times.Once);
+    }
+
     // --- AgentStop ---
 
     [Fact]

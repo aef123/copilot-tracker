@@ -129,23 +129,33 @@ public class CosmosPromptRepository : IPromptRepository
         if (ids.Count == 0)
             return new HashSet<string>();
 
-        // Build parameterized IN clause
+        // Fetch latest prompt per session: sessionId, status, hookTimestamp
         var paramNames = ids.Select((_, i) => $"@sid{i}").ToList();
-        var sql = $"SELECT DISTINCT VALUE c.sessionId FROM c WHERE c.status = 'started' AND c.sessionId IN ({string.Join(", ", paramNames)})";
+        var sql = $"SELECT c.sessionId, c.status, c.hookTimestamp FROM c WHERE c.sessionId IN ({string.Join(", ", paramNames)})";
         var queryDef = new QueryDefinition(sql);
         for (int i = 0; i < ids.Count; i++)
             queryDef = queryDef.WithParameter($"@sid{i}", ids[i]);
 
-        var result = new HashSet<string>();
-        using var iterator = _container.GetItemQueryIterator<string>(queryDef);
+        var prompts = new List<(string SessionId, string Status, long HookTimestamp)>();
+        using var iterator = _container.GetItemQueryIterator<System.Text.Json.JsonElement>(queryDef);
         while (iterator.HasMoreResults)
         {
             var response = await iterator.ReadNextAsync();
-            foreach (var sid in response)
-                result.Add(sid);
+            foreach (var item in response)
+            {
+                var sid = item.GetProperty("sessionId").GetString()!;
+                var status = item.GetProperty("status").GetString()!;
+                var ts = item.GetProperty("hookTimestamp").GetInt64();
+                prompts.Add((sid, status, ts));
+            }
         }
 
-        return result;
+        // Group by session, take latest by hookTimestamp, return only those with status "started"
+        return prompts
+            .GroupBy(p => p.SessionId)
+            .Where(g => g.OrderByDescending(p => p.HookTimestamp).First().Status == "started")
+            .Select(g => g.Key)
+            .ToHashSet();
     }
 
     public async Task<int> CountByStatusAsync(string status)

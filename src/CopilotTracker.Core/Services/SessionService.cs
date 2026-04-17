@@ -99,7 +99,7 @@ public class SessionService
         return result;
     }
 
-    public virtual async Task UpdateSessionTitleAsync(string sessionId, string machineId, string title)
+    public virtual async Task UpdateSessionTitleAsync(string sessionId, string machineId, string? title)
     {
         try
         {
@@ -252,8 +252,12 @@ public class SessionService
     {
         var prompts = await _prompts.GetBySessionAsync(sessionId);
 
-        // If any prompt is still active (started), the session is definitely not stale
-        if (prompts.Any(p => p.Status == "started"))
+        if (prompts.Count == 0)
+            return false;
+
+        // Only the latest prompt determines if session is active
+        var latestPrompt = prompts.OrderByDescending(p => p.HookTimestamp).First();
+        if (latestPrompt.Status == "started")
             return true;
 
         // If any prompt was created or updated after the cutoff, session is active

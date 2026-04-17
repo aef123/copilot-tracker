@@ -54,6 +54,44 @@ public class PromptServiceTests
         _promptRepo.Verify(r => r.CreateAsync(It.IsAny<Prompt>()), Times.Once);
     }
 
+    [Fact]
+    public async Task CreatePromptAsync_ClosesMissedStart_WhenActive()
+    {
+        var missedStart = new Prompt
+        {
+            Id = "ms1", SessionId = "s1", Status = "started", PromptText = "MISSED START"
+        };
+        _promptRepo.Setup(r => r.GetActiveBySessionAsync("s1")).ReturnsAsync(missedStart);
+        _promptRepo.Setup(r => r.UpdateAsync(It.IsAny<Prompt>()))
+            .ReturnsAsync((Prompt p) => p);
+        _promptRepo.Setup(r => r.CreateAsync(It.IsAny<Prompt>()))
+            .ReturnsAsync((Prompt p) => p);
+
+        await _sut.CreatePromptAsync("s1", "Real prompt", null, 123, "user1", "copilot");
+
+        missedStart.Status.Should().Be("done");
+        missedStart.CompletedAt.Should().NotBeNull();
+        _promptRepo.Verify(r => r.UpdateAsync(missedStart), Times.Once);
+        _promptRepo.Verify(r => r.CreateAsync(It.Is<Prompt>(p => p.PromptText == "Real prompt")), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreatePromptAsync_DoesNotCloseRealActivePrompt()
+    {
+        var realPrompt = new Prompt
+        {
+            Id = "p1", SessionId = "s1", Status = "started", PromptText = "Previous real prompt"
+        };
+        _promptRepo.Setup(r => r.GetActiveBySessionAsync("s1")).ReturnsAsync(realPrompt);
+        _promptRepo.Setup(r => r.CreateAsync(It.IsAny<Prompt>()))
+            .ReturnsAsync((Prompt p) => p);
+
+        await _sut.CreatePromptAsync("s1", "New prompt", null, 123, "user1", "copilot");
+
+        realPrompt.Status.Should().Be("started");
+        _promptRepo.Verify(r => r.UpdateAsync(It.IsAny<Prompt>()), Times.Never);
+    }
+
     // --- CompleteActivePromptAsync tests ---
 
     [Fact]

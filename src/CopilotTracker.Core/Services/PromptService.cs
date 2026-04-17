@@ -19,6 +19,16 @@ public class PromptService
         string sessionId, string promptText, string? cwd, long hookTimestamp,
         string userId, string createdBy, string? title = null)
     {
+        // Close any active MISSED START prompt before creating a real one
+        var activePrompt = await _repository.GetActiveBySessionAsync(sessionId);
+        if (activePrompt != null && activePrompt.PromptText == "MISSED START")
+        {
+            activePrompt.Status = "done";
+            activePrompt.CompletedAt = DateTime.UtcNow;
+            activePrompt.UpdatedAt = DateTime.UtcNow;
+            await _repository.UpdateAsync(activePrompt);
+        }
+
         var prompt = new Prompt
         {
             Id = Guid.NewGuid().ToString(),

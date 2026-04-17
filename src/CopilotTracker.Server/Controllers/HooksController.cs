@@ -61,7 +61,7 @@ public class HooksController : ControllerBase
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
 
-        if (!string.IsNullOrEmpty(hook.Title) && hook.MachineName != null)
+        if (hook.MachineName != null)
             await _sessionService.UpdateSessionTitleAsync(hook.SessionId, hook.MachineName, hook.Title);
 
         var prompt = await _promptService.CreatePromptAsync(
