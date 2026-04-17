@@ -110,8 +110,9 @@ public class CosmosSessionRepository : ISessionRepository
         int pageSize = 50)
     {
         var query = new QueryDefinition(
-            "SELECT * FROM c WHERE c.status = @status AND c.lastHeartbeat < @heartbeatBefore ORDER BY c.updatedAt DESC")
-            .WithParameter("@status", SessionStatus.Active)
+            "SELECT * FROM c WHERE (c.status = @activeStatus OR c.status = @idleStatus) AND c.lastHeartbeat < @heartbeatBefore ORDER BY c.updatedAt DESC")
+            .WithParameter("@activeStatus", SessionStatus.Active)
+            .WithParameter("@idleStatus", SessionStatus.Idle)
             .WithParameter("@heartbeatBefore", heartbeatBefore);
 
         var options = new QueryRequestOptions { MaxItemCount = pageSize };

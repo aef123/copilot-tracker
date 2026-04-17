@@ -99,6 +99,10 @@ export function SessionGrid() {
                   <span className="session-card-heartbeat">{timeAgo(s.lastHeartbeat)}</span>
                 </div>
 
+                {s.title && (
+                  <div className="session-card-title">{s.title}</div>
+                )}
+
                 <div className="session-card-machine">{s.machineId}</div>
 
                 <div className="session-card-meta">

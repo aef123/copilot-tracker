@@ -89,7 +89,7 @@ public class SessionServiceTests
     [Fact]
     public async Task HeartbeatAsync_ThrowsWhenSessionNotActive()
     {
-        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Completed };
+        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Closed };
         _sessionRepo.Setup(r => r.GetAsync("s1", "m1")).ReturnsAsync(session);
 
         var act = () => _sut.HeartbeatAsync("s1", "m1");
@@ -109,7 +109,7 @@ public class SessionServiceTests
         var before = DateTime.UtcNow;
         var result = await _sut.CompleteSessionAsync("s1", "m1", "All done");
 
-        result.Status.Should().Be(SessionStatus.Completed);
+        result.Status.Should().Be(SessionStatus.Closed);
         result.CompletedAt.Should().NotBeNull();
         result.CompletedAt!.Value.Should().BeOnOrAfter(before);
         result.Summary.Should().Be("All done");
@@ -132,8 +132,8 @@ public class SessionServiceTests
     {
         var staleSessions = new List<Session>
         {
-            new() { Id = "s1", MachineId = "m1", Status = SessionStatus.Active },
-            new() { Id = "s2", MachineId = "m2", Status = SessionStatus.Active }
+            new() { Id = "s1", MachineId = "m1", Status = SessionStatus.Active, LastHeartbeat = DateTime.UtcNow.AddDays(-2) },
+            new() { Id = "s2", MachineId = "m2", Status = SessionStatus.Active, LastHeartbeat = DateTime.UtcNow.AddDays(-2) }
         };
 
         _sessionRepo.Setup(r => r.GetStaleSessionsAsync(It.IsAny<DateTime>(), null, 50))
@@ -155,12 +155,12 @@ public class SessionServiceTests
     {
         var page1 = new PagedResult<Session>
         {
-            Items = [new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Active }],
+            Items = [new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Active, LastHeartbeat = DateTime.UtcNow.AddDays(-2) }],
             ContinuationToken = "token1"
         };
         var page2 = new PagedResult<Session>
         {
-            Items = [new Session { Id = "s2", MachineId = "m2", Status = SessionStatus.Active }],
+            Items = [new Session { Id = "s2", MachineId = "m2", Status = SessionStatus.Active, LastHeartbeat = DateTime.UtcNow.AddDays(-2) }],
             ContinuationToken = null
         };
 
@@ -280,7 +280,7 @@ public class SessionServiceTests
     [Fact]
     public async Task CompleteSessionAsync_ThrowsWhenAlreadyCompleted()
     {
-        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Completed };
+        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Closed };
         _sessionRepo.Setup(r => r.GetAsync("s1", "m1")).ReturnsAsync(session);
 
         var act = () => _sut.CompleteSessionAsync("s1", "m1", "summary");
@@ -300,7 +300,7 @@ public class SessionServiceTests
         var result = await _sut.CompleteSessionAsync("s1", "m1", null);
 
         result.Summary.Should().BeNull();
-        result.Status.Should().Be(SessionStatus.Completed);
+        result.Status.Should().Be(SessionStatus.Closed);
     }
 
     [Fact]
@@ -459,7 +459,7 @@ public class SessionServiceTests
     {
         var existing = new Session
         {
-            Id = "s1", MachineId = "m1", Status = SessionStatus.Completed, Tool = null
+            Id = "s1", MachineId = "m1", Status = SessionStatus.Closed, Tool = null
         };
         _sessionRepo.Setup(r => r.GetAsync("s1", "m1")).ReturnsAsync(existing);
         _sessionRepo.Setup(r => r.UpdateAsync(It.IsAny<Session>()))

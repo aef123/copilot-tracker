@@ -266,7 +266,7 @@ describe("SessionList", () => {
       const page2: Session = {
         id: "s2",
         machineId: "m2",
-        status: "completed",
+        status: "closed",
         createdAt: "2025-01-15T11:00:00Z",
         updatedAt: "2025-01-15T11:00:00Z",
         lastHeartbeat: "2025-01-15T11:00:00Z",
@@ -363,7 +363,7 @@ describe("SessionList", () => {
             lastHeartbeat: "2025-01-15T10:00:00Z", userId: "u1", createdBy: "copilot",
           },
           {
-            id: "s2", machineId: "m2", status: "completed", tool: "claude",
+            id: "s2", machineId: "m2", status: "closed", tool: "claude",
             createdAt: "2025-01-15T11:00:00Z", updatedAt: "2025-01-15T11:00:00Z",
             lastHeartbeat: "2025-01-15T11:00:00Z", userId: "u1", createdBy: "copilot",
           },

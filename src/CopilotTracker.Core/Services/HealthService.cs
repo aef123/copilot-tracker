@@ -34,7 +34,7 @@ public class HealthService
                 return _cached;
 
             var activePage = await _sessions.ListAsync(status: SessionStatus.Active, pageSize: 1);
-            var completedPage = await _sessions.ListAsync(status: SessionStatus.Completed, pageSize: 1);
+            var completedPage = await _sessions.ListAsync(status: SessionStatus.Closed, pageSize: 1);
             var stalePage = await _sessions.ListAsync(status: SessionStatus.Stale, pageSize: 1);
             var allTasksPage = await _tasks.ListAsync(pageSize: 1);
             var activeTasksPage = await _tasks.ListAsync(status: Models.TaskStatus.Started, pageSize: 1);
@@ -43,7 +43,7 @@ public class HealthService
             int activeSessions = await CountAllAsync(
                 token => _sessions.ListAsync(status: SessionStatus.Active, continuationToken: token));
             int completedSessions = await CountAllAsync(
-                token => _sessions.ListAsync(status: SessionStatus.Completed, continuationToken: token));
+                token => _sessions.ListAsync(status: SessionStatus.Closed, continuationToken: token));
             int staleSessions = await CountAllAsync(
                 token => _sessions.ListAsync(status: SessionStatus.Stale, continuationToken: token));
             int totalTasks = await CountAllTasksAsync(

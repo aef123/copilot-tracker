@@ -7,7 +7,7 @@ public class StaleSessionCleanupService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<StaleSessionCleanupService> _logger;
     private readonly TimeSpan _interval;
-    private readonly TimeSpan _staleThreshold;
+    private readonly TimeSpan _idleThreshold;
     private readonly TimeSpan _initialDelay;
 
     public StaleSessionCleanupService(
@@ -20,7 +20,7 @@ public class StaleSessionCleanupService : BackgroundService
 
         _interval = TimeSpan.FromMinutes(
             configuration.GetValue<double>("StaleCleanup:IntervalMinutes", 5));
-        _staleThreshold = TimeSpan.FromMinutes(
+        _idleThreshold = TimeSpan.FromMinutes(
             configuration.GetValue<double>("StaleCleanup:ThresholdMinutes", 10));
         _initialDelay = TimeSpan.FromSeconds(
             configuration.GetValue<double>("StaleCleanup:InitialDelaySeconds", 30));
@@ -30,7 +30,7 @@ public class StaleSessionCleanupService : BackgroundService
     {
         _logger.LogInformation(
             "Stale session cleanup started. Interval: {Interval}, Threshold: {Threshold}",
-            _interval, _staleThreshold);
+            _interval, _idleThreshold);
 
         await Task.Delay(_initialDelay, stoppingToken);
 
@@ -43,7 +43,7 @@ public class StaleSessionCleanupService : BackgroundService
                 using var scope = _serviceProvider.CreateScope();
                 var sessionService = scope.ServiceProvider.GetRequiredService<SessionService>();
 
-                int cleaned = await sessionService.CleanupStaleSessionsAsync(_staleThreshold);
+                int cleaned = await sessionService.CleanupStaleSessionsAsync(_idleThreshold);
 
                 if (cleaned > 0)
                     _logger.LogInformation("Cleaned up {Count} stale sessions", cleaned);

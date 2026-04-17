@@ -42,7 +42,7 @@ public class HooksController : ControllerBase
         var session = await _sessionService.InitializeFromHookAsync(
             hook.SessionId, hook.MachineName ?? Environment.MachineName,
             hook.Repository, hook.Branch, hook.Source, hook.InitialPrompt,
-            userId, createdBy, hook.Tool);
+            userId, createdBy, hook.Tool, hook.Title);
         return Ok(new { sessionId = session.Id });
     }
 
@@ -60,6 +60,9 @@ public class HooksController : ControllerBase
         var (userId, createdBy) = GetUserInfo();
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
+
+        if (!string.IsNullOrEmpty(hook.Title) && hook.MachineName != null)
+            await _sessionService.UpdateSessionTitleAsync(hook.SessionId, hook.MachineName, hook.Title);
 
         var prompt = await _promptService.CreatePromptAsync(
             hook.SessionId, hook.Prompt, hook.Cwd, hook.Timestamp, userId, createdBy);

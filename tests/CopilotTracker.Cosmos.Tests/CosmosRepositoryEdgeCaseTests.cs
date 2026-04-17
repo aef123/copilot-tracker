@@ -367,7 +367,7 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockEmptyFeedIterator<Session>();
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @status")
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @activeStatus")
                     && q.QueryText.Contains("c.lastHeartbeat < @heartbeatBefore")),
                 (string?)null,
                 It.IsAny<QueryRequestOptions>()))
@@ -387,7 +387,7 @@ public class CosmosSessionRepositoryEdgeCaseTests
         var iterator = CosmosMockHelpers.MockFeedIterator<Session>([session], "stale-next");
         _mockContainer
             .Setup(c => c.GetItemQueryIterator<Session>(
-                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @status")
+                It.Is<QueryDefinition>(q => q.QueryText.Contains("c.status = @activeStatus")
                     && q.QueryText.Contains("c.lastHeartbeat < @heartbeatBefore")),
                 (string?)null,
                 It.Is<QueryRequestOptions>(o => o.MaxItemCount == 10)))

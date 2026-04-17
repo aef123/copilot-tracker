@@ -26,7 +26,7 @@ public class HealthServiceTests
                 Items = Enumerable.Range(0, active).Select(_ => new Session()).ToList(),
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, 50))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Closed, null, null, null, 50))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = Enumerable.Range(0, completed).Select(_ => new Session()).ToList(),
@@ -73,7 +73,7 @@ public class HealthServiceTests
                 Items = activeSessions > 0 ? [new Session()] : [],
                 ContinuationToken = null
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, 1))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Closed, null, null, null, 1))
             .ReturnsAsync(new PagedResult<Session>
             {
                 Items = completedSessions > 0 ? [new Session()] : [],
@@ -224,7 +224,7 @@ public class HealthServiceTests
                 Interlocked.Increment(ref callCount);
                 return new PagedResult<Session> { Items = [], ContinuationToken = null };
             });
-        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Completed, null, null, null, It.IsAny<int>()))
+        _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Closed, null, null, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });
         _sessionRepo.Setup(r => r.ListAsync(null, SessionStatus.Stale, null, null, null, It.IsAny<int>()))
             .ReturnsAsync(new PagedResult<Session> { Items = [], ContinuationToken = null });

@@ -28,13 +28,47 @@ pwsh -Command "Import-Module Pester; $config = New-PesterConfiguration; $config.
 
 The plugin is distributed via the `aef123/ai-marketplace` marketplace. The canonical source is this repo (`plugins/copilot-session-tracker/`), but users install from the marketplace. After any change:
 
-1. Clone `aef123/ai-marketplace`
-2. Remove `plugins/copilot-session-tracker/` in the marketplace repo
-3. Copy `plugins/copilot-session-tracker/` from this repo into it
-4. Update marketplace.json if the plugin description or version changed
-5. Commit and push the marketplace repo
+### Step 1: Build and package deployment artifacts
+
+Before syncing to the marketplace, build the server and copy artifacts into the plugin tree:
+
+1. Build the .NET server for deployment:
+   ```powershell
+   dotnet publish src/CopilotTracker.Server -c Release -o publish/
+   ```
+
+2. Copy published binaries into the plugin's deploy skill:
+   ```powershell
+   Remove-Item -Recurse -Force plugins/copilot-session-tracker/skills/deploy/binaries/ -ErrorAction SilentlyContinue
+   New-Item -ItemType Directory -Path plugins/copilot-session-tracker/skills/deploy/binaries/ -Force
+   Copy-Item -Recurse publish/* plugins/copilot-session-tracker/skills/deploy/binaries/
+   ```
+
+3. Copy Bicep infrastructure templates into the plugin's deploy skill:
+   ```powershell
+   Remove-Item -Recurse -Force plugins/copilot-session-tracker/skills/deploy/infra/ -ErrorAction SilentlyContinue
+   New-Item -ItemType Directory -Path plugins/copilot-session-tracker/skills/deploy/infra/ -Force
+   Copy-Item deploy/main.bicep plugins/copilot-session-tracker/skills/deploy/infra/
+   ```
+
+4. Copy the same binaries to the update-server skill:
+   ```powershell
+   Remove-Item -Recurse -Force plugins/copilot-session-tracker/skills/update-server/binaries/ -ErrorAction SilentlyContinue
+   New-Item -ItemType Directory -Path plugins/copilot-session-tracker/skills/update-server/binaries/ -Force
+   Copy-Item -Recurse publish/* plugins/copilot-session-tracker/skills/update-server/binaries/
+   ```
+
+### Step 2: Sync to marketplace
+
+5. Clone `aef123/ai-marketplace`
+6. Remove `plugins/copilot-session-tracker/` in the marketplace repo
+7. Copy `plugins/copilot-session-tracker/` from this repo into it
+8. Update marketplace.json if the plugin description or version changed
+9. Commit and push the marketplace repo
 
 If marketplace.json entries (in `.claude/`, `.claude-plugin/`, `.github/plugin/`) need version or description updates, update all three locations.
+
+> **Note:** The `binaries/` and `infra/` directories under the skill folders are NOT checked into this repo. They are only generated during the marketplace sync process. The `.gitignore` excludes them.
 
 ## Code Style
 

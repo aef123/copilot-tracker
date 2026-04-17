@@ -110,6 +110,22 @@ try {
         }
     }
     
+    # Parse optional title from prompt text (sessionStart and userPromptSubmitted)
+    if ($HookType -eq "sessionStart" -or $HookType -eq "userPromptSubmitted") {
+        $promptField = if ($HookType -eq "sessionStart") { "initialPrompt" } else { "prompt" }
+        $promptText = $payload.$promptField
+
+        if ($promptText -and $promptText -match '(?:^|\r?\n)\s*[Tt]itle:\s*(.+?)\s*$') {
+            $title = $Matches[1].Trim()
+            # Strip the title line from the prompt
+            $cleanedPrompt = $promptText -replace '(?:\r?\n)\s*[Tt]itle:\s*.+?\s*$', '' -replace '^\s*[Tt]itle:\s*.+?\s*$', ''
+            $cleanedPrompt = $cleanedPrompt.TrimEnd()
+
+            $payload | Add-Member -NotePropertyName "title" -NotePropertyValue $title -Force
+            $payload | Add-Member -NotePropertyName $promptField -NotePropertyValue $cleanedPrompt -Force
+        }
+    }
+
     # POST to server
     $body = $payload | ConvertTo-Json -Depth 10 -Compress
     $headers = @{

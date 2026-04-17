@@ -171,7 +171,7 @@ public class StaleSessionCleanupServiceTests
             Id = "stale-1",
             MachineId = "m1",
             Status = SessionStatus.Active,
-            LastHeartbeat = DateTime.UtcNow.AddHours(-1)
+            LastHeartbeat = DateTime.UtcNow.AddDays(-2)
         };
 
         sessionRepo

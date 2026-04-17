@@ -54,3 +54,9 @@ appsettings.Development.json
 appsettings.Local.json
 *.pfx
 *.p12
+
+# Plugin build artifacts (generated during marketplace sync)
+plugins/copilot-session-tracker/skills/deploy/binaries/
+plugins/copilot-session-tracker/skills/deploy/infra/
+plugins/copilot-session-tracker/skills/update-server/binaries/
+publish/

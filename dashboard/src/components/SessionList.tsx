@@ -82,7 +82,8 @@ export function SessionList() {
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
-          <option value="completed">Completed</option>
+          <option value="idle">Idle</option>
+          <option value="closed">Closed</option>
           <option value="stale">Stale</option>
         </select>
         <select
@@ -111,6 +112,7 @@ export function SessionList() {
             <thead>
               <tr>
                 <th>Status</th>
+                <th>Title</th>
                 <th>Machine ID</th>
                 <th>Tool</th>
                 <th>Repository</th>
@@ -128,6 +130,7 @@ export function SessionList() {
                   <td>
                     <StatusBadge status={s.status} />
                   </td>
+                  <td>{s.title || "-"}</td>
                   <td>{s.machineId}</td>
                   <td><ToolBadge tool={s.tool} /></td>
                   <td>{s.repository || "-"}</td>

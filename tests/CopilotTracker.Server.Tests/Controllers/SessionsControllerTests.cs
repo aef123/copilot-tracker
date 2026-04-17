@@ -302,7 +302,7 @@ public class SessionsControllerTests
     [Fact]
     public async Task Complete_ReturnsOkWithSession()
     {
-        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Completed };
+        var session = new Session { Id = "s1", MachineId = "m1", Status = SessionStatus.Closed };
         _sessionService
             .Setup(s => s.CompleteSessionAsync("s1", "m1", "done"))
             .ReturnsAsync(session);

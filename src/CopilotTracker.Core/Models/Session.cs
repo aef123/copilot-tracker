@@ -6,6 +6,7 @@ public class Session
     public string MachineId { get; set; } = string.Empty;
     public string? Repository { get; set; }
     public string? Branch { get; set; }
+    public string? Title { get; set; }
     public string? Tool { get; set; }
     public string Status { get; set; } = SessionStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -20,6 +21,10 @@ public class Session
 public static class SessionStatus
 {
     public const string Active = "active";
-    public const string Completed = "completed";
+    public const string Closed = "closed";
+    public const string Idle = "idle";
     public const string Stale = "stale";
+
+    [Obsolete("Use Closed instead")]
+    public const string Completed = "closed";
 }

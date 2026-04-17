@@ -54,6 +54,7 @@ export function SessionDetail() {
 
   const fields: { label: string; value: string; badge?: boolean; toolBadge?: boolean }[] = [
     { label: "Session ID", value: session.id },
+    { label: "Title", value: session.title || "-" },
     { label: "Machine ID", value: session.machineId },
     { label: "Status", value: session.status, badge: true },
     { label: "Repository", value: session.repository || "-" },

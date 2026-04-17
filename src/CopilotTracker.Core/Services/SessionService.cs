@@ -51,9 +51,10 @@ public class SessionService
         var session = await _sessions.GetAsync(id, machineId)
             ?? throw new InvalidOperationException($"Session '{id}' not found.");
 
-        if (session.Status != SessionStatus.Active)
+        if (session.Status != SessionStatus.Active && session.Status != SessionStatus.Idle)
             throw new InvalidOperationException($"Session '{id}' is not active (status: {session.Status}).");
 
+        session.Status = SessionStatus.Active;  // Reactivate if idle
         session.LastHeartbeat = DateTime.UtcNow;
         session.UpdatedAt = DateTime.UtcNow;
         return await _sessions.UpdateAsync(session);
@@ -67,7 +68,7 @@ public class SessionService
         if (session.Status != SessionStatus.Active)
             throw new InvalidOperationException($"Session '{id}' is not active (status: {session.Status}).");
 
-        session.Status = SessionStatus.Completed;
+        session.Status = SessionStatus.Closed;
         session.CompletedAt = DateTime.UtcNow;
         session.Summary = summary;
         session.UpdatedAt = DateTime.UtcNow;
@@ -85,10 +86,28 @@ public class SessionService
         return await _sessions.ListAsync(machineId, status, tool, since, continuationToken, pageSize);
     }
 
+    public virtual async Task UpdateSessionTitleAsync(string sessionId, string machineId, string title)
+    {
+        try
+        {
+            var session = await _sessions.GetAsync(sessionId, machineId);
+            if (session != null)
+            {
+                session.Title = title;
+                session.UpdatedAt = DateTime.UtcNow;
+                await _sessions.UpdateAsync(session);
+            }
+        }
+        catch (Exception)
+        {
+            // Best-effort title update
+        }
+    }
+
     public virtual async Task<Session> InitializeFromHookAsync(
         string hookSessionId, string machineName, string? repository, string? branch,
         string source, string? initialPrompt, string userId, string createdBy,
-        string? tool = null)
+        string? tool = null, string? title = null)
     {
         // For "resume" or "startup": check if session already exists
         if (source == "resume" || source == "startup")
@@ -98,6 +117,8 @@ public class SessionService
             {
                 existing.Status = SessionStatus.Active;
                 existing.Tool = tool ?? existing.Tool;
+                if (title != null)
+                    existing.Title = title;
                 existing.LastHeartbeat = DateTime.UtcNow;
                 existing.UpdatedAt = DateTime.UtcNow;
                 await _sessions.UpdateAsync(existing);
@@ -121,6 +142,7 @@ public class SessionService
             Repository = repository,
             Branch = branch,
             Tool = tool,
+            Title = title,
             Status = SessionStatus.Active,
             UserId = userId,
             CreatedBy = createdBy,
@@ -138,8 +160,9 @@ public class SessionService
         try
         {
             var session = await _sessions.GetAsync(sessionId, machineId);
-            if (session != null && session.Status == SessionStatus.Active)
+            if (session != null && (session.Status == SessionStatus.Active || session.Status == SessionStatus.Idle))
             {
+                session.Status = SessionStatus.Active;  // Reactivate if idle
                 session.LastHeartbeat = DateTime.UtcNow;
                 session.UpdatedAt = DateTime.UtcNow;
                 await _sessions.UpdateAsync(session);
@@ -151,24 +174,33 @@ public class SessionService
         }
     }
 
-    public async Task<int> CleanupStaleSessionsAsync(TimeSpan staleThreshold)
+    public async Task<int> CleanupStaleSessionsAsync(TimeSpan idleThreshold)
     {
-        var cutoff = DateTime.UtcNow - staleThreshold;
+        var idleCutoff = DateTime.UtcNow - idleThreshold;
+        var staleCutoff = DateTime.UtcNow - TimeSpan.FromDays(1);
         int totalCleaned = 0;
         string? token = null;
 
         do
         {
-            var page = await _sessions.GetStaleSessionsAsync(cutoff, token);
+            var page = await _sessions.GetStaleSessionsAsync(idleCutoff, token);
 
             foreach (var session in page.Items)
             {
-                // Check if the session has recent prompt activity before marking stale
-                if (await HasRecentActivityAsync(session.Id, cutoff))
+                // Skip closed sessions (they have CompletedAt)
+                if (session.CompletedAt.HasValue)
+                    continue;
+
+                // Check if the session has recent prompt activity before marking
+                if (await HasRecentActivityAsync(session.Id, idleCutoff))
                 {
-                    // Session has recent activity, refresh its heartbeat instead
+                    // Session has recent activity, refresh its heartbeat
                     session.LastHeartbeat = DateTime.UtcNow;
                     session.UpdatedAt = DateTime.UtcNow;
+                    if (session.Status != SessionStatus.Active)
+                    {
+                        session.Status = SessionStatus.Active;
+                    }
                     await _sessions.UpdateAsync(session);
                     _logger.LogDebug(
                         "Session {SessionId} has recent prompt activity, refreshing heartbeat",
@@ -176,10 +208,22 @@ public class SessionService
                     continue;
                 }
 
-                session.Status = SessionStatus.Stale;
-                session.UpdatedAt = DateTime.UtcNow;
-                await _sessions.UpdateAsync(session);
-                totalCleaned++;
+                // Determine if stale (> 1 day) or idle (> idle threshold but < 1 day)
+                if (session.LastHeartbeat < staleCutoff)
+                {
+                    // No activity for over 1 day and no end session → stale
+                    session.Status = SessionStatus.Stale;
+                    session.UpdatedAt = DateTime.UtcNow;
+                    await _sessions.UpdateAsync(session);
+                    totalCleaned++;
+                }
+                else if (session.Status == SessionStatus.Active)
+                {
+                    // Active but no recent activity → idle
+                    session.Status = SessionStatus.Idle;
+                    session.UpdatedAt = DateTime.UtcNow;
+                    await _sessions.UpdateAsync(session);
+                }
             }
 
             token = page.ContinuationToken;

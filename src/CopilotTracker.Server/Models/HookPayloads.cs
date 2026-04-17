@@ -14,6 +14,7 @@ public class SessionStartHook
     public string? Repository { get; set; }
     public string? Branch { get; set; }
     public string? Tool { get; set; }
+    public string? Title { get; set; }
 }
 
 public class SessionEndHook
@@ -32,6 +33,7 @@ public class UserPromptSubmittedHook
     public string Cwd { get; set; } = string.Empty;
     public string Prompt { get; set; } = string.Empty;
     public string? MachineName { get; set; }
+    public string? Title { get; set; }
 }
 
 public class AgentStopHook
