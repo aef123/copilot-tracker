@@ -640,6 +640,106 @@ h2 {
   font-size: 13px;
 }
 
+/* ========== Hot Dog Stand: light text on red surfaces ========== */
+[data-theme="hot-dog-stand"] .layout-header,
+[data-theme="hot-dog-stand"] .layout-header h1 {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .layout-nav a {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .layout-nav a:hover,
+[data-theme="hot-dog-stand"] .layout-nav a.active {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .layout-user {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .layout-user button {
+  color: var(--hds-light-muted);
+  border-color: var(--hds-light-dim);
+}
+[data-theme="hot-dog-stand"] .layout-user button:hover {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .theme-select {
+  color: var(--hds-light);
+  background: var(--bg-surface);
+}
+[data-theme="hot-dog-stand"] .session-card {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .session-card-title,
+[data-theme="hot-dog-stand"] .session-card-machine {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .session-card-heartbeat,
+[data-theme="hot-dog-stand"] .session-card-times,
+[data-theme="hot-dog-stand"] .session-card-prompt-label {
+  color: var(--hds-light-dim);
+}
+[data-theme="hot-dog-stand"] .session-card-prompt-text,
+[data-theme="hot-dog-stand"] .session-card-prompt-empty {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .session-card-repo {
+  color: var(--hds-light);
+  background: rgba(0, 0, 0, 0.2);
+}
+[data-theme="hot-dog-stand"] .session-card-branch {
+  color: var(--hds-light-muted);
+  background: rgba(0, 0, 0, 0.2);
+}
+[data-theme="hot-dog-stand"] .session-card .badge {
+  filter: brightness(2);
+}
+[data-theme="hot-dog-stand"] .detail-card {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .detail-card h2 {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .detail-card p {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .detail-field .label {
+  color: var(--hds-light-dim);
+}
+[data-theme="hot-dog-stand"] .detail-field .value {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .health-card .label {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .health-card .value {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .health-meta {
+  color: var(--hds-light-dim);
+}
+[data-theme="hot-dog-stand"] .chart-card-title {
+  color: var(--hds-light-muted);
+}
+[data-theme="hot-dog-stand"] .filters select,
+[data-theme="hot-dog-stand"] .filters input {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .prompt-text-content {
+  color: #000000;
+}
+[data-theme="hot-dog-stand"] .log-entry .log-message {
+  color: #000000;
+}
+[data-theme="hot-dog-stand"] .log-entry .log-time {
+  color: #550000;
+}
+[data-theme="hot-dog-stand"] .title-responding {
+  color: var(--hds-light);
+}
+[data-theme="hot-dog-stand"] .title-idle {
+  color: #88FF88;
+}
+
 /* ========== Pride Theme Flag Accents ========== */
 /* Matches all pride themes (pride-dark, pride-light, progress-pride-dark, etc.) */
 

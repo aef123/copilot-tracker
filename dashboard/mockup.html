@@ -164,9 +164,10 @@
 
 [data-theme="hot-dog-stand"] {
   --bg: #FFFF00; --bg-surface: #FF0000; --bg-hover: #DD0000; --border: #000000;
-  --text: #FFFFFF; --text-muted: #000000; --text-dim: #330000;
-  --accent: #FFFFFF; --green: #00FF00; --yellow: #FFFF00; --red: #FF0000; --purple: #FF00FF;
+  --text: #000000; --text-muted: #330000; --text-dim: #550000;
+  --accent: #CC0000; --green: #006600; --yellow: #886600; --red: #CC0000; --purple: #660066;
   --header-accent: none;
+  --hds-light: #FFFFFF; --hds-light-muted: #FFFF88; --hds-light-dim: #FFCC00;
 }
 [data-theme="arctic-reflection"] {
   --bg: #e4ecf4; --bg-surface: #eef4fa; --bg-hover: #d4e0f0; --border: #b0c4d8;
@@ -317,6 +318,36 @@ h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
 .session-card-repo { font-size: 12px; color: var(--accent); background: rgba(88, 166, 255, 0.1); padding: 2px 8px; border-radius: 4px; }
 .session-card-branch { font-size: 12px; color: var(--purple); background: rgba(188, 140, 255, 0.1); padding: 2px 8px; border-radius: 4px; }
 .session-card-times { display: flex; gap: 12px; font-size: 12px; color: var(--text-dim); }
+
+/* ========== Hot Dog Stand: light text on red surfaces ========== */
+[data-theme="hot-dog-stand"] .layout-header,
+[data-theme="hot-dog-stand"] .layout-header h1 { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .layout-nav a { color: var(--hds-light-muted); }
+[data-theme="hot-dog-stand"] .layout-nav a:hover,
+[data-theme="hot-dog-stand"] .layout-nav a.active { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .layout-user { color: var(--hds-light-muted); }
+[data-theme="hot-dog-stand"] .layout-user button { color: var(--hds-light-muted); border-color: var(--hds-light-dim); }
+[data-theme="hot-dog-stand"] .theme-select { color: var(--hds-light); background: var(--bg-surface); }
+[data-theme="hot-dog-stand"] .session-card,
+[data-theme="hot-dog-stand"] .session-card-title,
+[data-theme="hot-dog-stand"] .session-card-machine { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .session-card-heartbeat,
+[data-theme="hot-dog-stand"] .session-card-times,
+[data-theme="hot-dog-stand"] .session-card-prompt-label { color: var(--hds-light-dim); }
+[data-theme="hot-dog-stand"] .session-card-prompt-text,
+[data-theme="hot-dog-stand"] .session-card-prompt-empty { color: var(--hds-light-muted); }
+[data-theme="hot-dog-stand"] .session-card-repo { color: var(--hds-light); background: rgba(0,0,0,0.2); }
+[data-theme="hot-dog-stand"] .session-card-branch { color: var(--hds-light-muted); background: rgba(0,0,0,0.2); }
+[data-theme="hot-dog-stand"] .session-card .badge { filter: brightness(2); }
+[data-theme="hot-dog-stand"] .detail-card { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .detail-card h2 { color: var(--hds-light-muted); }
+[data-theme="hot-dog-stand"] .detail-field .label { color: var(--hds-light-dim); }
+[data-theme="hot-dog-stand"] .detail-field .value { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .health-card .label { color: var(--hds-light-muted); }
+[data-theme="hot-dog-stand"] .health-card .value { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .filters select { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .title-responding { color: var(--hds-light); }
+[data-theme="hot-dog-stand"] .title-idle { color: #88FF88; }
 
 /* ========== Pride Theme Flag Accents ========== */
 [data-theme*="pride"] .layout-header { border-bottom-width: 5px; }

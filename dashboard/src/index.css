@@ -163,15 +163,18 @@
   --bg-surface: #FF0000;
   --bg-hover: #DD0000;
   --border: #000000;
-  --text: #FFFFFF;
-  --text-muted: #000000;
-  --text-dim: #330000;
-  --accent: #FFFFFF;
-  --green: #00FF00;
-  --yellow: #FFFF00;
-  --red: #FF0000;
-  --purple: #FF00FF;
+  --text: #000000;
+  --text-muted: #330000;
+  --text-dim: #550000;
+  --accent: #CC0000;
+  --green: #006600;
+  --yellow: #886600;
+  --red: #CC0000;
+  --purple: #660066;
   --header-accent: none;
+  --hds-light: #FFFFFF;
+  --hds-light-muted: #FFFF88;
+  --hds-light-dim: #FFCC00;
 }
 
 [data-theme="arctic-reflection"] {
