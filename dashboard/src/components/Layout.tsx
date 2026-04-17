@@ -36,10 +36,13 @@ export function Layout() {
           >
             <option value="purple-dark">Purple Dark</option>
             <option value="purple-light">Purple Light</option>
-            <option value="pride">Pride</option>
-            <option value="progress-pride">Progress Pride</option>
-            <option value="trans-pride">Trans Pride</option>
             <option value="dark">Dark</option>
+            <option value="pride-dark">Pride Dark</option>
+            <option value="pride-light">Pride Light</option>
+            <option value="progress-pride-dark">Progress Pride Dark</option>
+            <option value="progress-pride-light">Progress Pride Light</option>
+            <option value="trans-pride-dark">Trans Pride Dark</option>
+            <option value="trans-pride-light">Trans Pride Light</option>
           </select>
           <span>{user?.name}</span>
           <button onClick={logout}>Sign Out</button>

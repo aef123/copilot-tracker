@@ -641,70 +641,47 @@ h2 {
 }
 
 /* ========== Pride Theme Flag Accents ========== */
-
-/* Flag bar across top of page */
-[data-theme="pride"] .layout::before,
-[data-theme="progress-pride"] .layout::before,
-[data-theme="trans-pride"] .layout::before {
-  content: "";
-  display: block;
-  height: 4px;
-  background: var(--header-accent);
-}
+/* Matches all pride themes (pride-dark, pride-light, progress-pride-dark, etc.) */
 
 /* Thicker flag header border */
-[data-theme="pride"] .layout-header,
-[data-theme="progress-pride"] .layout-header,
-[data-theme="trans-pride"] .layout-header {
+[data-theme*="pride"] .layout-header {
   border-bottom-width: 5px;
 }
 
 /* Flag underline on active nav link */
-[data-theme="pride"] .layout-nav a.active,
-[data-theme="progress-pride"] .layout-nav a.active,
-[data-theme="trans-pride"] .layout-nav a.active {
+[data-theme*="pride"] .layout-nav a.active {
   border-bottom: 3px solid transparent;
   border-image: var(--header-accent) 1;
 }
 
 /* Flag left stripe on cards */
-[data-theme="pride"] .session-card,
-[data-theme="progress-pride"] .session-card,
-[data-theme="trans-pride"] .session-card {
+[data-theme*="pride"] .session-card {
   border-left: 4px solid transparent;
   border-image: var(--flag-stripe) 1;
   border-image-width: 0 0 0 4px;
 }
 
 /* Flag glow on card hover */
-[data-theme="pride"] .session-card:hover,
-[data-theme="progress-pride"] .session-card:hover,
-[data-theme="trans-pride"] .session-card:hover {
+[data-theme*="pride"] .session-card:hover {
   box-shadow: 0 0 12px rgba(255, 107, 107, 0.25), 0 0 4px rgba(0, 77, 255, 0.2);
 }
 
 /* Flag left stripe on data tables */
-[data-theme="pride"] .data-table,
-[data-theme="progress-pride"] .data-table,
-[data-theme="trans-pride"] .data-table {
+[data-theme*="pride"] .data-table {
   border-left: 4px solid transparent;
   border-image: var(--flag-stripe) 1;
   border-image-width: 0 0 0 4px;
 }
 
 /* Flag left stripe on detail cards */
-[data-theme="pride"] .detail-card,
-[data-theme="progress-pride"] .detail-card,
-[data-theme="trans-pride"] .detail-card {
+[data-theme*="pride"] .detail-card {
   border-left: 4px solid transparent;
   border-image: var(--flag-stripe) 1;
   border-image-width: 0 0 0 4px;
 }
 
 /* Flag gradient on filter/tab active state */
-[data-theme="pride"] .view-tab.active,
-[data-theme="progress-pride"] .view-tab.active,
-[data-theme="trans-pride"] .view-tab.active {
+[data-theme*="pride"] .view-tab.active {
   background: transparent;
   border: 2px solid transparent;
   border-image: var(--header-accent) 1;
