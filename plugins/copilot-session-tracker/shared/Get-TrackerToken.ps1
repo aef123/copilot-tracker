@@ -22,9 +22,10 @@ function Get-TrackerToken {
     if (Test-Path $cachePath) {
         try {
             $cache = Get-Content $cachePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            $configAuthMode = if ($Config.authMode) { $Config.authMode } else { "user" }
             $isValid = $cache.tenantId -eq $Config.tenantId -and
                        $cache.resourceId -eq $Config.resourceId -and
-                       $cache.authMode -eq ($Config.authMode ?? "user") -and
+                       $cache.authMode -eq $configAuthMode -and
                        ([datetime]$cache.expiresOn) -gt (Get-Date).ToUniversalTime().AddMinutes(5)
             
             if ($Config.authMode -eq "certificate") {
@@ -64,7 +65,7 @@ function Get-TrackerToken {
         expiresOn   = $expiresOn
         tenantId    = $Config.tenantId
         resourceId  = $Config.resourceId
-        authMode    = ($Config.authMode ?? "user")
+        authMode    = if ($Config.authMode) { $Config.authMode } else { "user" }
         clientId    = $Config.clientId
     }
     
