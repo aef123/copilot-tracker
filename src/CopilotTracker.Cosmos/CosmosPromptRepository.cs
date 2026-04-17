@@ -143,9 +143,25 @@ public class CosmosPromptRepository : IPromptRepository
             var response = await iterator.ReadNextAsync();
             foreach (var item in response)
             {
-                var sid = item.GetProperty("sessionId").GetString()!;
-                var status = item.GetProperty("status").GetString()!;
-                var ts = item.GetProperty("hookTimestamp").GetInt64();
+                if (!item.TryGetProperty("sessionId", out var sidProp) ||
+                    !item.TryGetProperty("status", out var statusProp))
+                    continue;
+
+                var sid = sidProp.GetString();
+                var status = statusProp.GetString();
+                if (sid == null || status == null)
+                    continue;
+
+                long ts = 0;
+                if (item.TryGetProperty("hookTimestamp", out var tsProp))
+                {
+                    if (tsProp.ValueKind == System.Text.Json.JsonValueKind.Number)
+                        ts = tsProp.GetInt64();
+                    else if (tsProp.ValueKind == System.Text.Json.JsonValueKind.String &&
+                             long.TryParse(tsProp.GetString(), out var parsed))
+                        ts = parsed;
+                }
+
                 prompts.Add((sid, status, ts));
             }
         }
