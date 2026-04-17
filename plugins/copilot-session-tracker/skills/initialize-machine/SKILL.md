@@ -240,6 +240,8 @@ Write-Output "✅ Config written: $configPath"
 
 Create or merge `~/.copilot/hooks/hooks.json`. Preserves any non-tracker entries.
 
+**CRITICAL FORMAT:** hooks.json MUST have `"version": 1` at the top level and all hook types MUST be inside a `"hooks"` wrapper object. Each entry uses `"type": "command"` and a `"powershell"` string (not `command`/`args`). Getting this wrong causes Copilot CLI to silently ignore all hooks.
+
 ```powershell
 $hooksDir = Join-Path $env:USERPROFILE ".copilot\hooks"
 $hooksPath = Join-Path $hooksDir "hooks.json"
@@ -257,13 +259,15 @@ $trackerHookTypes = @(
     @{ name = "postToolUse";          timeoutSec = 10 }
 )
 
-# Build tracker hook entries
-$trackerHooks = @{}
+# Build tracker hook entries using the CORRECT format:
+# { "type": "command", "powershell": "<full command string>", "timeoutSec": N }
+$trackerHooks = [ordered]@{}
 foreach ($hook in $trackerHookTypes) {
     $trackerHooks[$hook.name] = @(
         @{
-            command    = "powershell"
-            args       = @("-ExecutionPolicy", "Bypass", "-File", $hookScript, "-HookType", $hook.name)
+            type       = "command"
+            powershell = "powershell -ExecutionPolicy Bypass -File `"$hookScript`" -HookType $($hook.name)"
+            comment    = "Copilot Session Tracker"
             timeoutSec = $hook.timeoutSec
         }
     )
@@ -274,45 +278,66 @@ if (-not (Test-Path $hooksDir)) {
     New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
 }
 
-$existingHooks = @{}
+$existingHooksObj = $null
+$existingHookEntries = [ordered]@{}
 if (Test-Path $hooksPath) {
     try {
-        $existingHooks = Get-Content $hooksPath -Raw | ConvertFrom-Json -AsHashtable
+        $existingHooksObj = Get-Content $hooksPath -Raw | ConvertFrom-Json -AsHashtable
+        # Extract the hooks from inside the "hooks" wrapper (if present)
+        if ($existingHooksObj.ContainsKey("hooks")) {
+            $existingHookEntries = $existingHooksObj["hooks"]
+        } else {
+            # Legacy format without wrapper - treat all keys except "version" as hooks
+            foreach ($k in $existingHooksObj.Keys) {
+                if ($k -ne "version") { $existingHookEntries[$k] = $existingHooksObj[$k] }
+            }
+        }
         Write-Output "✅ Read existing hooks.json"
     } catch {
         Write-Warning "⚠️  Existing hooks.json was invalid, starting fresh."
-        $existingHooks = @{}
     }
 }
 
-# Merge: for each hook type, keep non-tracker entries and add/replace tracker entries
+# Merge: for each tracker hook type, keep non-tracker entries and add tracker entry
 foreach ($hookType in $trackerHooks.Keys) {
     $existingEntries = @()
-    if ($existingHooks.ContainsKey($hookType)) {
-        # Keep entries that don't reference our hook script
-        $existingEntries = @($existingHooks[$hookType] | Where-Object {
-            $entryArgs = if ($_.args) { $_.args -join " " } else { "" }
-            $entryArgs -notmatch "Invoke-TrackerHook"
+    if ($existingHookEntries.ContainsKey($hookType)) {
+        # Keep entries whose powershell field does not reference Invoke-TrackerHook
+        $existingEntries = @($existingHookEntries[$hookType] | Where-Object {
+            $ps = if ($_.powershell) { $_.powershell } else { "" }
+            $ps -notmatch "Invoke-TrackerHook"
         })
     }
-    $existingHooks[$hookType] = @($existingEntries) + $trackerHooks[$hookType]
+    $existingHookEntries[$hookType] = @($existingEntries) + $trackerHooks[$hookType]
+}
+
+# Build final structure with version and hooks wrapper
+$finalHooks = [ordered]@{
+    version = 1
+    hooks   = $existingHookEntries
 }
 
 # Write atomically: write to temp file then move
 $tempPath = "$hooksPath.tmp"
-$existingHooks | ConvertTo-Json -Depth 10 | Set-Content -Path $tempPath -Encoding UTF8
+$finalHooks | ConvertTo-Json -Depth 10 | Set-Content -Path $tempPath -Encoding UTF8
 Move-Item -Path $tempPath -Destination $hooksPath -Force
 Write-Output "✅ hooks.json written: $hooksPath"
 
-# Validate the result is valid JSON with camelCase keys
+# Validate the result
 try {
     $validation = Get-Content $hooksPath -Raw | ConvertFrom-Json
-    $keys = ($validation | Get-Member -MemberType NoteProperty).Name
+    if (-not $validation.version) {
+        Write-Warning "⚠️  hooks.json is missing 'version' field!"
+    }
+    if (-not $validation.hooks) {
+        Write-Warning "⚠️  hooks.json is missing 'hooks' wrapper!"
+    }
+    $keys = ($validation.hooks | Get-Member -MemberType NoteProperty).Name
     $badKeys = $keys | Where-Object { $_ -cmatch "^[A-Z]" }
     if ($badKeys) {
         Write-Warning "⚠️  Found non-camelCase keys in hooks.json: $($badKeys -join ', ')"
     } else {
-        Write-Output "✅ hooks.json validated: all keys are camelCase."
+        Write-Output "✅ hooks.json validated: version=$($validation.version), $($keys.Count) hook types, all camelCase."
     }
 } catch {
     Write-Error "❌ hooks.json is not valid JSON after write!"
