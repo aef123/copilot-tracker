@@ -239,10 +239,11 @@ Write the tracker config JSON at `~/.copilot/copilot-tracker-config.json`.
 
 ```powershell
 $configObj = @{
-    serverUrl  = $serverUrl
-    tenantId   = $tenantId
-    resourceId = $resourceId
-    authMode   = $authMode
+    serverUrl        = $serverUrl
+    tenantId         = $tenantId
+    resourceId       = $resourceId
+    authMode         = $authMode
+    installedVersion = "4.0.0"
 }
 
 # Add certificate-specific fields only for certificate auth
