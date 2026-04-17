@@ -14,6 +14,8 @@ export function Layout() {
             Dashboard
           </NavLink>
           <NavLink to="/sessions">Sessions</NavLink>
+          <NavLink to="/sessions/grid">Grid</NavLink>
+          <NavLink to="/analytics">Analytics</NavLink>
         </nav>
         <div className="layout-user">
           <span>{user?.name}</span>

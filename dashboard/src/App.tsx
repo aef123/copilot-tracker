@@ -4,9 +4,11 @@ import { useAuth } from "./auth/useAuth";
 import { Layout } from "./components/Layout";
 import { HealthDashboard } from "./components/HealthDashboard";
 import { SessionList } from "./components/SessionList";
+import { SessionGrid } from "./components/SessionGrid";
 import { SessionDetail } from "./components/SessionDetail";
 import { TaskDetail } from "./components/TaskDetail";
 import { PromptDetail } from "./components/PromptDetail";
+import { ChartsDashboard } from "./components/ChartsDashboard";
 import "./components/styles.css";
 
 function App() {
@@ -30,9 +32,11 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<HealthDashboard />} />
               <Route path="/sessions" element={<SessionList />} />
+              <Route path="/sessions/grid" element={<SessionGrid />} />
               <Route path="/sessions/:machineId/:id" element={<SessionDetail />} />
               <Route path="/prompts/:sessionId/:id" element={<PromptDetail />} />
               <Route path="/tasks/:queueName/:id" element={<TaskDetail />} />
+              <Route path="/analytics" element={<ChartsDashboard />} />
             </Route>
           </Routes>
         </BrowserRouter>

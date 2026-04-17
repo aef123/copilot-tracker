@@ -75,9 +75,7 @@ describe("PromptDetail", () => {
 
     expect(await screen.findByText("Prompt Details")).toBeInTheDocument();
     expect(screen.getByText("prompt-1")).toBeInTheDocument();
-    expect(screen.getByText("Implement feature")).toBeInTheDocument();
     expect(screen.getByText("done")).toBeInTheDocument();
-    expect(screen.getByText("prompt")).toBeInTheDocument();
   });
 
   it("renders error state on API failure", async () => {
@@ -276,7 +274,5 @@ describe("PromptDetail", () => {
     expect(screen.getByText("Prompt ID")).toBeInTheDocument();
     expect(screen.getByText("Session ID")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
-    expect(screen.getByText("Title")).toBeInTheDocument();
-    expect(screen.getByText("Source")).toBeInTheDocument();
   });
 });

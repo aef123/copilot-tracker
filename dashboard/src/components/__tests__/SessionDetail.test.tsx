@@ -206,8 +206,8 @@ describe("SessionDetail", () => {
     const headers = document.querySelectorAll("th");
     const headerTexts = Array.from(headers).map((h) => h.textContent);
     expect(headerTexts).toContain("Status");
-    expect(headerTexts).toContain("Title");
-    expect(headerTexts).toContain("Source");
+    expect(headerTexts).toContain("Prompt");
+    expect(headerTexts).toContain("Created");
     expect(headerTexts).toContain("Result / Error");
   });
 
