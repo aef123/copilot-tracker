@@ -45,14 +45,9 @@ export function Layout() {
             <option value="trans-pride-light">Trans Pride Light</option>
             <option value="hot-dog-stand">Hot Dog Stand</option>
             <option value="arctic-reflection">Arctic Reflection</option>
-            <option value="frosted-aura">Frosted Aura</option>
-            <option value="moon-dust">Moon Dust</option>
             <option value="amber-walnut-morning">Amber Walnut Morning</option>
-            <option value="sorbet">Sorbet</option>
             <option value="pearl">Pearl</option>
             <option value="jade-pebble-morning">Jade Pebble Morning</option>
-            <option value="neutral-elegance">Neutral Elegance</option>
-            <option value="ink-wash">Ink Wash</option>
           </select>
           <span>{user?.name}</span>
           <button onClick={logout}>Sign Out</button>
