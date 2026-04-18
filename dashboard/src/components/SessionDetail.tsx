@@ -53,10 +53,7 @@ export function SessionDetail() {
   if (error) return <div className="error-message">{error}</div>;
   if (!session) return <div className="empty-state">Session not found.</div>;
 
-  const latestPrompt = prompts.length > 0
-    ? prompts.reduce((latest, p) => Number(p.hookTimestamp ?? 0) > Number(latest.hookTimestamp ?? 0) ? p : latest)
-    : null;
-  const hasActivePrompt = latestPrompt?.status === "started";
+  const hasActivePrompt = prompts.some(p => p.status === "started");
   const enrichedSession = { ...session, hasActivePrompt };
   const displayStatus = getDisplayStatus(enrichedSession);
   const titleColorClass = getTitleColorClass(enrichedSession);
