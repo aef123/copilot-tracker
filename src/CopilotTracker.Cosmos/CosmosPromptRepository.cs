@@ -129,26 +129,27 @@ public class CosmosPromptRepository : IPromptRepository
         if (ids.Count == 0)
             return new HashSet<string>();
 
-        // Query for any prompt with status "started" across the given sessions
+        // Fetch sessionId, status, hookTimestamp for all prompts in the given sessions
         var paramNames = ids.Select((_, i) => $"@sid{i}").ToList();
-        var sql = $"SELECT DISTINCT VALUE c.sessionId FROM c WHERE c.sessionId IN ({string.Join(", ", paramNames)}) AND c.status = 'started'";
+        var sql = $"SELECT c.sessionId, c.status, c.hookTimestamp FROM c WHERE c.sessionId IN ({string.Join(", ", paramNames)})";
         var queryDef = new QueryDefinition(sql);
         for (int i = 0; i < ids.Count; i++)
             queryDef = queryDef.WithParameter($"@sid{i}", ids[i]);
 
-        var result = new HashSet<string>();
-        using var iterator = _container.GetItemQueryIterator<string>(queryDef);
+        var prompts = new List<Prompt>();
+        using var iterator = _container.GetItemQueryIterator<Prompt>(queryDef);
         while (iterator.HasMoreResults)
         {
             var response = await iterator.ReadNextAsync();
-            foreach (var sid in response)
-            {
-                if (sid != null)
-                    result.Add(sid);
-            }
+            prompts.AddRange(response);
         }
 
-        return result;
+        // Group by session, take the most recent prompt by hookTimestamp, return sessions where it's "started"
+        return prompts
+            .GroupBy(p => p.SessionId)
+            .Where(g => g.OrderByDescending(p => p.HookTimestamp).First().Status == "started")
+            .Select(g => g.Key)
+            .ToHashSet();
     }
 
     public async Task<int> CountByStatusAsync(string status)
