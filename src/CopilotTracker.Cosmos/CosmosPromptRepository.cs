@@ -129,49 +129,26 @@ public class CosmosPromptRepository : IPromptRepository
         if (ids.Count == 0)
             return new HashSet<string>();
 
-        // Fetch latest prompt per session: sessionId, status, hookTimestamp
+        // Query for any prompt with status "started" across the given sessions
         var paramNames = ids.Select((_, i) => $"@sid{i}").ToList();
-        var sql = $"SELECT c.sessionId, c.status, c.hookTimestamp FROM c WHERE c.sessionId IN ({string.Join(", ", paramNames)})";
+        var sql = $"SELECT DISTINCT VALUE c.sessionId FROM c WHERE c.sessionId IN ({string.Join(", ", paramNames)}) AND c.status = 'started'";
         var queryDef = new QueryDefinition(sql);
         for (int i = 0; i < ids.Count; i++)
             queryDef = queryDef.WithParameter($"@sid{i}", ids[i]);
 
-        var prompts = new List<(string SessionId, string Status, long HookTimestamp)>();
-        using var iterator = _container.GetItemQueryIterator<System.Text.Json.JsonElement>(queryDef);
+        var result = new HashSet<string>();
+        using var iterator = _container.GetItemQueryIterator<string>(queryDef);
         while (iterator.HasMoreResults)
         {
             var response = await iterator.ReadNextAsync();
-            foreach (var item in response)
+            foreach (var sid in response)
             {
-                if (!item.TryGetProperty("sessionId", out var sidProp) ||
-                    !item.TryGetProperty("status", out var statusProp))
-                    continue;
-
-                var sid = sidProp.GetString();
-                var status = statusProp.GetString();
-                if (sid == null || status == null)
-                    continue;
-
-                long ts = 0;
-                if (item.TryGetProperty("hookTimestamp", out var tsProp))
-                {
-                    if (tsProp.ValueKind == System.Text.Json.JsonValueKind.Number)
-                        ts = tsProp.GetInt64();
-                    else if (tsProp.ValueKind == System.Text.Json.JsonValueKind.String &&
-                             long.TryParse(tsProp.GetString(), out var parsed))
-                        ts = parsed;
-                }
-
-                prompts.Add((sid, status, ts));
+                if (sid != null)
+                    result.Add(sid);
             }
         }
 
-        // Group by session, take latest by hookTimestamp, return only those with status "started"
-        return prompts
-            .GroupBy(p => p.SessionId)
-            .Where(g => g.OrderByDescending(p => p.HookTimestamp).First().Status == "started")
-            .Select(g => g.Key)
-            .ToHashSet();
+        return result;
     }
 
     public async Task<int> CountByStatusAsync(string status)
