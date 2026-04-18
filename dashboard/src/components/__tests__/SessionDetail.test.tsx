@@ -100,22 +100,22 @@ describe("SessionDetail", () => {
     mockGetSession.mockResolvedValue(baseSession);
     mockListPrompts.mockResolvedValue({
       items: [
-        basePrompt,
-        { ...basePrompt, id: "task-2", title: "Deploy app" },
+        { ...basePrompt, promptText: "Run the test suite" },
+        { ...basePrompt, id: "task-2", title: "Deploy app", promptText: "Deploy the app to staging" },
       ],
       hasMore: false,
     });
 
     renderSessionDetail();
 
-    expect(await screen.findByText("Run tests")).toBeInTheDocument();
-    expect(screen.getByText("Deploy app")).toBeInTheDocument();
+    expect(await screen.findByText("Run the test suite")).toBeInTheDocument();
+    expect(screen.getByText("Deploy the app to staging")).toBeInTheDocument();
     expect(screen.getByText("Prompts (2)")).toBeInTheDocument();
   });
 
   it("displays task result in the table", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [{ ...basePrompt, promptText: "Run the tests" }], hasMore: false });
 
     renderSessionDetail();
 
@@ -185,11 +185,11 @@ describe("SessionDetail", () => {
 
   it("calls listPrompts with the session id for server-side filtering", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [{ ...basePrompt, promptText: "Run the tests" }], hasMore: false });
 
     renderSessionDetail();
 
-    await screen.findByText("Run tests");
+    await screen.findByText("Run the tests");
 
     // Import and check that listPrompts was called with sessionId
     const { listPrompts: actualListPrompts } = await import("../../api");
@@ -198,11 +198,11 @@ describe("SessionDetail", () => {
 
   it("displays all task table columns", async () => {
     mockGetSession.mockResolvedValue(baseSession);
-    mockListPrompts.mockResolvedValue({ items: [basePrompt], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [{ ...basePrompt, promptText: "Run the tests" }], hasMore: false });
 
     renderSessionDetail();
 
-    await screen.findByText("Run tests");
+    await screen.findByText("Run the tests");
     const headers = document.querySelectorAll("th");
     const headerTexts = Array.from(headers).map((h) => h.textContent);
     expect(headerTexts).toContain("Status");
@@ -218,11 +218,11 @@ describe("SessionDetail", () => {
       errorMessage: undefined,
     };
     mockGetSession.mockResolvedValue(baseSession);
-    mockListPrompts.mockResolvedValue({ items: [noResultPrompt], hasMore: false });
+    mockListPrompts.mockResolvedValue({ items: [{ ...noResultPrompt, promptText: "Check status" }], hasMore: false });
 
     renderSessionDetail();
 
-    await screen.findByText("Run tests");
+    await screen.findByText("Check status");
     // The table cell shows "-" when neither result nor errorMessage exists
     const cells = document.querySelectorAll("td");
     const lastTd = cells[cells.length - 1];

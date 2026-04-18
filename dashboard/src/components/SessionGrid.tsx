@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { listSessions } from "../api";
+import { listSessions, listPrompts } from "../api";
 import type { Session } from "../api";
 import { getDisplayStatus, getTitleColorClass } from "../utils/sessionStatus";
+
+const PROMPT_PREVIEW_LENGTH = 80;
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
@@ -40,6 +42,7 @@ export function SessionGrid() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("active");
+  const [latestPrompts, setLatestPrompts] = useState<Record<string, string>>({});
 
   const fetchData = useCallback(async () => {
     try {
@@ -55,6 +58,19 @@ export function SessionGrid() {
       );
       setSessions(sorted);
       setError(null);
+
+      // Fetch latest prompt for each session
+      const promptResults = await Promise.allSettled(
+        sorted.map((s) => listPrompts({ sessionId: s.id, pageSize: 1 }))
+      );
+      const promptMap: Record<string, string> = {};
+      sorted.forEach((s, i) => {
+        const r = promptResults[i];
+        if (r.status === "fulfilled" && r.value.items.length > 0) {
+          promptMap[s.id] = r.value.items[0].promptText || r.value.items[0].title || "";
+        }
+      });
+      setLatestPrompts(promptMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
@@ -117,7 +133,11 @@ export function SessionGrid() {
                 </div>
 
                 <div className={`session-card-title ${getTitleColorClass(s)}`}>
-                  {s.title || "N/A"}
+                  {latestPrompts[s.id]
+                    ? latestPrompts[s.id].length > PROMPT_PREVIEW_LENGTH
+                      ? latestPrompts[s.id].slice(0, PROMPT_PREVIEW_LENGTH) + "..."
+                      : latestPrompts[s.id]
+                    : "-"}
                 </div>
 
                 <div className="session-card-machine">{s.machineId}</div>

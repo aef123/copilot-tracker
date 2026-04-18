@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getSession, listPrompts } from "../api";
 import type { Session, Prompt } from "../api";
-import { getDisplayStatus, getTitleColorClass } from "../utils/sessionStatus";
+import { getDisplayStatus } from "../utils/sessionStatus";
 
 const PROMPT_PREVIEW_LENGTH = 80;
 
@@ -59,11 +59,9 @@ export function SessionDetail() {
   const hasActivePrompt = latestPrompt?.status === "started";
   const enrichedSession = { ...session, hasActivePrompt };
   const displayStatus = getDisplayStatus(enrichedSession);
-  const titleColorClass = getTitleColorClass(enrichedSession);
 
   const fields: { label: string; value: string; badge?: boolean; toolBadge?: boolean; className?: string }[] = [
     { label: "Session ID", value: session.id },
-    { label: "Title", value: session.title || "N/A", className: titleColorClass },
     { label: "Machine ID", value: session.machineId },
     { label: "Status", value: displayStatus, badge: true },
     { label: "Repository", value: session.repository || "-" },
@@ -107,7 +105,6 @@ export function SessionDetail() {
             <thead>
               <tr>
                 <th>Status</th>
-                <th>Title</th>
                 <th>Prompt</th>
                 <th>Created</th>
                 <th>Result / Error</th>
@@ -124,7 +121,6 @@ export function SessionDetail() {
                   <td>
                     <StatusBadge status={p.status} />
                   </td>
-                  <td>{p.title || "-"}</td>
                   <td className="cell-prompt-preview">
                     {p.promptText
                       ? p.promptText.length > PROMPT_PREVIEW_LENGTH

@@ -6,10 +6,12 @@ import type { Session } from "../../api";
 
 vi.mock("../../api", () => ({
   listSessions: vi.fn(),
+  listPrompts: vi.fn(),
 }));
 
-import { listSessions } from "../../api";
+import { listSessions, listPrompts } from "../../api";
 const mockListSessions = vi.mocked(listSessions);
+const mockListPrompts = vi.mocked(listPrompts);
 
 function renderWithRouter() {
   return render(
@@ -36,6 +38,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
 describe("SessionGrid", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
   });
 
   it("renders session cards", async () => {

@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { listSessions } from "../api";
+import { listSessions, listPrompts } from "../api";
 import type { Session } from "../api";
 import { getDisplayStatus, getTitleColorClass } from "../utils/sessionStatus";
+
+const PROMPT_PREVIEW_LENGTH = 80;
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
@@ -41,6 +43,7 @@ export function SessionList() {
   const [continuationToken, setContinuationToken] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [latestPrompts, setLatestPrompts] = useState<Record<string, string>>({});
 
   const fetchSessions = useCallback(
     async (token?: string) => {
@@ -57,14 +60,28 @@ export function SessionList() {
         }
         const result = await listSessions(params);
 
+        const newSessions = token ? result.items : result.items;
         if (token) {
-          setSessions((prev) => [...prev, ...result.items]);
+          setSessions((prev) => [...prev, ...newSessions]);
         } else {
-          setSessions(result.items);
+          setSessions(newSessions);
         }
         setContinuationToken(result.continuationToken);
         setHasMore(result.hasMore);
         setError(null);
+
+        // Fetch latest prompt for each new session
+        const promptResults = await Promise.allSettled(
+          newSessions.map((s) => listPrompts({ sessionId: s.id, pageSize: 1 }))
+        );
+        const promptMap: Record<string, string> = {};
+        newSessions.forEach((s, i) => {
+          const r = promptResults[i];
+          if (r.status === "fulfilled" && r.value.items.length > 0) {
+            promptMap[s.id] = r.value.items[0].promptText || r.value.items[0].title || "";
+          }
+        });
+        setLatestPrompts((prev) => ({ ...prev, ...promptMap }));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load sessions");
       } finally {
@@ -145,7 +162,7 @@ export function SessionList() {
             <thead>
               <tr>
                 <th>Status</th>
-                <th>Title</th>
+                <th>Prompt</th>
                 <th>Machine ID</th>
                 <th>Tool</th>
                 <th>Repository</th>
@@ -163,7 +180,13 @@ export function SessionList() {
                   <td>
                     <StatusBadge status={getDisplayStatus(s)} />
                   </td>
-                  <td className={getTitleColorClass(s)}>{s.title || "N/A"}</td>
+                  <td className={`cell-prompt-preview ${getTitleColorClass(s)}`}>
+                    {latestPrompts[s.id]
+                      ? latestPrompts[s.id].length > PROMPT_PREVIEW_LENGTH
+                        ? latestPrompts[s.id].slice(0, PROMPT_PREVIEW_LENGTH) + "..."
+                        : latestPrompts[s.id]
+                      : "-"}
+                  </td>
                   <td>{s.machineId}</td>
                   <td><ToolBadge tool={s.tool} /></td>
                   <td>{formatRepository(s.repository)}</td>

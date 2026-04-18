@@ -7,10 +7,12 @@ import type { PagedResult, Session } from "../../api";
 
 vi.mock("../../api", () => ({
   listSessions: vi.fn(),
+  listPrompts: vi.fn(),
 }));
 
-import { listSessions } from "../../api";
+import { listSessions, listPrompts } from "../../api";
 const mockListSessions = vi.mocked(listSessions);
+const mockListPrompts = vi.mocked(listPrompts);
 
 function renderWithRouter() {
   return render(
@@ -23,6 +25,7 @@ function renderWithRouter() {
 describe("SessionList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListPrompts.mockResolvedValue({ items: [], hasMore: false });
   });
 
   it("renders session rows", async () => {
