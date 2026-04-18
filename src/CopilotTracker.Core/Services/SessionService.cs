@@ -99,7 +99,8 @@ public class SessionService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to enrich sessions with active prompt status; defaulting to null");
+                _logger.LogError(ex, "Failed to enrich sessions with active prompt status");
+                throw;
             }
         }
 
