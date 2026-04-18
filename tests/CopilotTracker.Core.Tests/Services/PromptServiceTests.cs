@@ -178,6 +178,43 @@ public class PromptServiceTests
         result.CreatedAt.Should().BeOnOrAfter(before);
     }
 
+    // --- GetActiveOrLatestPromptAsync tests ---
+
+    [Fact]
+    public async Task GetActiveOrLatestPromptAsync_ReturnsActivePrompt_WhenExists()
+    {
+        var active = new Prompt { Id = "p1", SessionId = "s1", Status = "started" };
+        _promptRepo.Setup(r => r.GetActiveBySessionAsync("s1")).ReturnsAsync(active);
+
+        var result = await _sut.GetActiveOrLatestPromptAsync("s1");
+
+        result.Should().BeSameAs(active);
+        _promptRepo.Verify(r => r.GetLatestBySessionAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetActiveOrLatestPromptAsync_FallsBackToLatest_WhenNoActivePrompt()
+    {
+        var latest = new Prompt { Id = "p2", SessionId = "s1", Status = "done" };
+        _promptRepo.Setup(r => r.GetActiveBySessionAsync("s1")).ReturnsAsync((Prompt?)null);
+        _promptRepo.Setup(r => r.GetLatestBySessionAsync("s1")).ReturnsAsync(latest);
+
+        var result = await _sut.GetActiveOrLatestPromptAsync("s1");
+
+        result.Should().BeSameAs(latest);
+    }
+
+    [Fact]
+    public async Task GetActiveOrLatestPromptAsync_ReturnsNull_WhenNoPrompts()
+    {
+        _promptRepo.Setup(r => r.GetActiveBySessionAsync("s1")).ReturnsAsync((Prompt?)null);
+        _promptRepo.Setup(r => r.GetLatestBySessionAsync("s1")).ReturnsAsync((Prompt?)null);
+
+        var result = await _sut.GetActiveOrLatestPromptAsync("s1");
+
+        result.Should().BeNull();
+    }
+
     // --- GetAsync tests ---
 
     [Fact]

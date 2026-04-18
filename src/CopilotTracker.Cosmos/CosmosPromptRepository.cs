@@ -62,6 +62,28 @@ public class CosmosPromptRepository : IPromptRepository
         return null;
     }
 
+    public async Task<Prompt?> GetLatestBySessionAsync(string sessionId)
+    {
+        var query = new QueryDefinition(
+            "SELECT TOP 1 * FROM c WHERE c.sessionId = @sessionId ORDER BY c.hookTimestamp DESC")
+            .WithParameter("@sessionId", sessionId);
+
+        var options = new QueryRequestOptions
+        {
+            MaxItemCount = 1,
+            PartitionKey = new PartitionKey(sessionId)
+        };
+
+        using var iterator = _container.GetItemQueryIterator<Prompt>(query, requestOptions: options);
+        if (iterator.HasMoreResults)
+        {
+            var response = await iterator.ReadNextAsync();
+            return response.FirstOrDefault();
+        }
+
+        return null;
+    }
+
     public async Task<IReadOnlyList<Prompt>> GetBySessionAsync(string sessionId)
     {
         var query = new QueryDefinition(

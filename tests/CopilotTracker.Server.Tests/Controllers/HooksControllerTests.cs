@@ -156,6 +156,34 @@ public class HooksControllerTests
     // --- AgentStop ---
 
     [Fact]
+    public async Task UserPromptSubmitted_SystemNotification_AttachesToParentPrompt()
+    {
+        var parentPrompt = new Prompt { Id = "parent-p1", SessionId = "s1", Status = "started" };
+        _promptService
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
+            .ReturnsAsync(parentPrompt);
+
+        var hook = new UserPromptSubmittedHook
+        {
+            SessionId = "s1",
+            Prompt = "<system_notification> Agent \"explorer\" has completed successfully.",
+            MachineName = "m1", Timestamp = 500
+        };
+        var result = await _controller.UserPromptSubmitted(hook);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(new { promptId = "parent-p1" });
+        _promptLogService.Verify(s => s.AddLogAsync(
+            "parent-p1", "s1", "notification", It.Is<string>(m => m.Contains("system_notification")),
+            null, null, 500), Times.Once);
+        _promptService.Verify(s => s.CreatePromptAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<long>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    // --- AgentStop (continued) ---
+
+    [Fact]
     public async Task AgentStop_CompletesActivePrompt_Returns200()
     {
         var prompt = new Prompt { Id = "p1", SessionId = "s1", Status = "done" };
@@ -198,7 +226,7 @@ public class HooksControllerTests
     {
         var prompt = new Prompt { Id = "p1", SessionId = "s1" };
         _promptService
-            .Setup(s => s.GetOrCreateActivePromptAsync("s1", "test-oid", "Test User"))
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
             .ReturnsAsync(prompt);
 
         var hook = new SubagentStartHook
@@ -209,33 +237,48 @@ public class HooksControllerTests
         var result = await _controller.SubagentStart(hook);
 
         result.Should().BeOfType<OkResult>();
-        _promptService.Verify(s => s.GetOrCreateActivePromptAsync("s1", "test-oid", "Test User"), Times.Once);
+        _promptService.Verify(s => s.GetActiveOrLatestPromptAsync("s1"), Times.Once);
         _promptLogService.Verify(s => s.AddLogAsync(
             "p1", "s1", "subagent_start", It.Is<string>(m => m.Contains("Explorer Agent")),
             "explorer", null, 555), Times.Once);
     }
 
     [Fact]
-    public async Task SubagentStart_NoActivePrompt_CreatesMissedStart()
+    public async Task SubagentStart_NoPrompts_ReturnsOk_NoLog()
     {
-        var missedPrompt = new Prompt
-        {
-            Id = "missed-p1", SessionId = "s1", PromptText = "MISSED START", Status = "started"
-        };
         _promptService
-            .Setup(s => s.GetOrCreateActivePromptAsync("s1", "test-oid", "Test User"))
-            .ReturnsAsync(missedPrompt);
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
+            .ReturnsAsync((Prompt?)null);
 
         var hook = new SubagentStartHook
         {
             SessionId = "s1", AgentName = "task", Timestamp = 100, MachineName = "m1"
         };
+        var result = await _controller.SubagentStart(hook);
+
+        result.Should().BeOfType<OkResult>();
+        _promptLogService.Verify(s => s.AddLogAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<long>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SubagentStart_NoActivePrompt_AttachesToLatest()
+    {
+        var latestPrompt = new Prompt { Id = "done-p1", SessionId = "s1", Status = "done" };
+        _promptService
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
+            .ReturnsAsync(latestPrompt);
+
+        var hook = new SubagentStartHook
+        {
+            SessionId = "s1", AgentName = "explorer", Timestamp = 100, MachineName = "m1"
+        };
         await _controller.SubagentStart(hook);
 
-        // The log should be attached to the missed-start prompt
         _promptLogService.Verify(s => s.AddLogAsync(
-            "missed-p1", "s1", "subagent_start", It.IsAny<string>(),
-            "task", null, 100), Times.Once);
+            "done-p1", "s1", "subagent_start", It.IsAny<string>(),
+            "explorer", null, 100), Times.Once);
     }
 
     // --- SubagentStop ---
@@ -245,7 +288,7 @@ public class HooksControllerTests
     {
         var prompt = new Prompt { Id = "p1", SessionId = "s1" };
         _promptService
-            .Setup(s => s.GetOrCreateActivePromptAsync("s1", "test-oid", "Test User"))
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
             .ReturnsAsync(prompt);
 
         var hook = new SubagentStopHook
@@ -269,7 +312,7 @@ public class HooksControllerTests
     {
         var prompt = new Prompt { Id = "p1", SessionId = "s1" };
         _promptService
-            .Setup(s => s.GetOrCreateActivePromptAsync("s1", "test-oid", "Test User"))
+            .Setup(s => s.GetActiveOrLatestPromptAsync("s1"))
             .ReturnsAsync(prompt);
 
         var hook = new NotificationHook

@@ -61,6 +61,19 @@ public class HooksController : ControllerBase
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
 
+        // System notifications (sub-agent completions) attach to the parent prompt
+        if (hook.Prompt != null && hook.Prompt.TrimStart().StartsWith("<system_notification>"))
+        {
+            var parentPrompt = await _promptService.GetActiveOrLatestPromptAsync(hook.SessionId);
+            if (parentPrompt != null)
+            {
+                await _promptLogService.AddLogAsync(
+                    parentPrompt.Id, hook.SessionId, "notification", hook.Prompt,
+                    null, null, hook.Timestamp);
+                return Ok(new { promptId = parentPrompt.Id });
+            }
+        }
+
         if (hook.MachineName != null)
             await _sessionService.UpdateSessionTitleAsync(hook.SessionId, hook.MachineName, hook.Title);
 
@@ -86,7 +99,13 @@ public class HooksController : ControllerBase
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
 
-        var prompt = await _promptService.GetOrCreateActivePromptAsync(hook.SessionId, userId, createdBy);
+        var prompt = await _promptService.GetActiveOrLatestPromptAsync(hook.SessionId);
+        if (prompt == null)
+        {
+            _logger.LogWarning("SubagentStart for session {SessionId} but no prompts exist; ignoring", hook.SessionId);
+            return Ok();
+        }
+
         var message = $"Sub-agent started: {hook.AgentDisplayName ?? hook.AgentName}";
         if (!string.IsNullOrEmpty(hook.AgentDescription))
             message += $" - {hook.AgentDescription}";
@@ -104,7 +123,13 @@ public class HooksController : ControllerBase
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
 
-        var prompt = await _promptService.GetOrCreateActivePromptAsync(hook.SessionId, userId, createdBy);
+        var prompt = await _promptService.GetActiveOrLatestPromptAsync(hook.SessionId);
+        if (prompt == null)
+        {
+            _logger.LogWarning("SubagentStop for session {SessionId} but no prompts exist; ignoring", hook.SessionId);
+            return Ok();
+        }
+
         var message = $"Sub-agent stopped: {hook.AgentDisplayName ?? hook.AgentName} (reason: {hook.StopReason})";
 
         await _promptLogService.AddLogAsync(
@@ -120,7 +145,13 @@ public class HooksController : ControllerBase
         if (hook.MachineName != null)
             await _sessionService.TouchSessionAsync(hook.SessionId, hook.MachineName);
 
-        var prompt = await _promptService.GetOrCreateActivePromptAsync(hook.SessionId, userId, createdBy);
+        var prompt = await _promptService.GetActiveOrLatestPromptAsync(hook.SessionId);
+        if (prompt == null)
+        {
+            _logger.LogWarning("Notification for session {SessionId} but no prompts exist; ignoring", hook.SessionId);
+            return Ok();
+        }
+
         var message = hook.Message;
         if (!string.IsNullOrEmpty(hook.Title))
             message = $"[{hook.Title}] {message}";

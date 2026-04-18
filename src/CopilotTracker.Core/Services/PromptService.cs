@@ -82,6 +82,19 @@ public class PromptService
         return missedPrompt;
     }
 
+    /// <summary>
+    /// Returns the active prompt if one exists, otherwise the most recent prompt.
+    /// Never creates a new prompt. Returns null only if the session has no prompts at all.
+    /// Used for subagent and notification events that should attach to the parent prompt.
+    /// </summary>
+    public virtual async Task<Prompt?> GetActiveOrLatestPromptAsync(string sessionId)
+    {
+        var activePrompt = await _repository.GetActiveBySessionAsync(sessionId);
+        if (activePrompt != null) return activePrompt;
+
+        return await _repository.GetLatestBySessionAsync(sessionId);
+    }
+
     public virtual async Task<Prompt?> GetAsync(string sessionId, string id)
     {
         return await _repository.GetAsync(sessionId, id);
